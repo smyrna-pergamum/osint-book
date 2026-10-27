@@ -1,0 +1,10 @@
+Collect public information about domains, URLs, IP addresses, organisations, GitHub repositories, software packages and file hashes from sources you choose. Every finding keeps its source link and retrieval time, and you can turn it into a PDF, CSV or JSON report.
+
+* Investigations are stored only on your device; no account, ads or tracking
+* 22 sources: DNS, RDAP, Internet Archive, GitHub, Wikipedia/Wikidata, OSV, IP geolocation from up to four sources on an OpenStreetMap map, Nominatim, urlscan.io search, and optional key-based sources (VirusTotal, AbuseIPDB, OTX, URLhaus, MalwareBazaar, Google Safe Browsing)
+* Rule-based analysis and timeline: domain age, e-mail security (SPF/DMARC), location consistency, threat findings per provider; no overall risk score
+* Before each query you see exactly what goes to which host
+* Findings grouped by query, with review status, notes, tags and relations
+* 9 languages, light and dark theme
+
+Some optional sources need your own free API key; the app shows step-by-step instructions. They are third-party, non-free network services.

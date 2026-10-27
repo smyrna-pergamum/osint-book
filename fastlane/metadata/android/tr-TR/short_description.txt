@@ -1,0 +1,1 @@
+Domain, IP, bağlantı ve depolar için yerel OSINT defteri ve raporlar

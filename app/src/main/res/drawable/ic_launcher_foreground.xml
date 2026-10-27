@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Magnifier over a small link graph (OSINT: connect public facts). Own artwork, GPL-3.0-or-later. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- lens ring -->
+    <path android:strokeColor="@color/ic_fg" android:strokeWidth="5" android:fillColor="#00000000"
+        android:pathData="M50,31a18,18 0 1 1 0,36a18,18 0 1 1 0,-36z" />
+    <!-- handle -->
+    <path android:strokeColor="@color/ic_fg" android:strokeWidth="7" android:strokeLineCap="round"
+        android:pathData="M63.5,62.5L76,75" />
+    <!-- graph edges -->
+    <path android:strokeColor="@color/ic_fg" android:strokeWidth="2.2" android:strokeLineCap="round"
+        android:pathData="M43,54L50,42L58,52L43,54" />
+    <!-- graph nodes -->
+    <path android:fillColor="@color/ic_fg"
+        android:pathData="M43,50.5a3.5,3.5 0 1 1 0,7a3.5,3.5 0 1 1 0,-7zM50,38.5a3.5,3.5 0 1 1 0,7a3.5,3.5 0 1 1 0,-7zM58,48.5a3.5,3.5 0 1 1 0,7a3.5,3.5 0 1 1 0,-7z" />
+</vector>

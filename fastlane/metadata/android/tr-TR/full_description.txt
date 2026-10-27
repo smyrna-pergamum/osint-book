@@ -1,0 +1,10 @@
+Domain, URL, IP adresi, kurum, GitHub deposu, yazılım paketi ve dosya özeti hakkındaki kamuya açık bilgileri seçtiğiniz kaynaklardan toplayın. Her bulgu kaynak bağlantısı ve erişim zamanıyla saklanır; PDF, CSV veya JSON rapora dönüştürülebilir.
+
+* Araştırmalar yalnızca cihazınızda; hesap, reklam veya izleme yok
+* 22 kaynak: DNS, RDAP, Internet Archive, GitHub, Wikipedia/Wikidata, OSV, dört kaynaklı IP konumu ve OpenStreetMap haritası, Nominatim, urlscan.io araması ve isteğe bağlı anahtarlı kaynaklar (VirusTotal, AbuseIPDB, OTX, URLhaus, MalwareBazaar, Google Safe Browsing)
+* Kural tabanlı analiz ve zaman çizelgesi: domain yaşı, e-posta güvenliği (SPF/DMARC), konum tutarlılığı, sağlayıcı bazında tehdit bulguları; genel risk puanı yok
+* Her sorgudan önce neyin hangi adrese gideceğini görürsünüz
+* Sorguya göre gruplu bulgular; inceleme durumu, not, etiket ve ilişkiler
+* 9 dil, açık ve koyu tema
+
+Bazı isteğe bağlı kaynaklar kendi ücretsiz API anahtarınızı gerektirir; uygulama adım adım talimat gösterir. Bunlar üçüncü taraf, özgür olmayan ağ hizmetleridir.
