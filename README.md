@@ -20,8 +20,6 @@ retrieval time, and turns it into PDF, CSV or JSON reports.
 - 9 languages (English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский, العربية); light and dark theme
 - No account, ads, tracking or telemetry. API keys are encrypted with Android Keystore (AES-GCM); app data is excluded from backups
 
-## Installation
-Not on F-Droid yet. Build from source with the instructions below.
 
 ## Building
 See [BUILDING.md](BUILDING.md).
