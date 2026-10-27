@@ -46,9 +46,14 @@ class PdfWriter(private val footer: (page: Int) -> String) {
         doc = PdfDocument()
         try {
             newPage()
-            for (b in blocks) when (b) {
+            for ((i, b) in blocks.withIndex()) when (b) {
                 is Block.Title -> { text(b.text, title); y += 6 }
-                is Block.Heading -> { ensure(40f); y += 10; text(b.text, heading); canvas!!.drawLine(margin, y, pageW - margin, y, rule); y += 6 }
+                is Block.Heading -> {
+                    // Keep a heading on the same page as the start of its content; an image cannot split.
+                    val next = blocks.getOrNull(i + 1)
+                    ensure(40f + if (next is Block.Image) width.toFloat() * next.bitmap.height / next.bitmap.width + 24f else 0f)
+                    y += 10; text(b.text, heading); canvas!!.drawLine(margin, y, pageW - margin, y, rule); y += 6
+                }
                 is Block.Para -> { text(b.text, if (b.muted) muted else body); y += 4 }
                 is Block.Image -> {
                     val w = width.toFloat()

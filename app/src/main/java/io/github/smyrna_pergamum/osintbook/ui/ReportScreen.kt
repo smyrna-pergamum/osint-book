@@ -125,8 +125,13 @@ fun ReportScreen(app: OsintApp, invId: String, back: () -> Unit) {
             val f = exportFile(context, b, Format.PDF)
             val map = mapBitmap.takeIf { options.includeMap }
             val analysis = Analyzer.analyze(b.targets, b.findings, b.queryRuns, b.relations, Providers.all.filter { app.repo.hasKey(it.id) }.map { it.id }.toSet())
-            f.outputStream().use { PdfWriter { n -> context.getString(R.string.rep_footer, b.investigation.title.take(60), n) }.write(buildReport(context, b, options, map, analysis), it) }
-            f to renderPreview(f)
+            // Each build writes its own temporary file and replaces the shared one only when complete,
+            // so an earlier build that is still running can never leave a half-written PDF behind.
+            val tmp = File(f.parentFile, "build-" + System.nanoTime() + ".pdf")
+            tmp.outputStream().use { PdfWriter { n -> context.getString(R.string.rep_footer, b.investigation.title.take(60), n) }.write(buildReport(context, b, options, map, analysis), it) }
+            val preview = renderPreview(tmp)
+            synchronized(pdfLock) { if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() } }
+            f to preview
         }
         pdfFile = file
         pages = bitmaps
@@ -323,17 +328,21 @@ private fun Modifier.pinchZoom(): Modifier = composed {
         .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }
 }
 
+private val pdfLock = Any()
+
+/** Preview pages; an unreadable file yields no pages instead of crashing the screen. */
 private fun renderPreview(file: File): List<Bitmap> {
     val out = mutableListOf<Bitmap>()
-    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+    runCatching { ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
         PdfRenderer(fd).use { r ->
             for (i in 0 until minOf(r.pageCount, 30)) r.openPage(i).use { p ->
+                if (p.width <= 0 || p.height <= 0) return@use
                 val bmp = Bitmap.createBitmap(p.width * 2, p.height * 2, Bitmap.Config.ARGB_8888)
                 bmp.eraseColor(Color.WHITE)
                 p.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 out += bmp
             }
         }
-    }
+    } }
     return out
 }
