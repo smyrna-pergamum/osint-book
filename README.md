@@ -1,29 +1,33 @@
 # OSINT-Book
 
-Android için ücretsiz, açık kaynak, yerel öncelikli OSINT (açık kaynak istihbarat) uygulaması.
-Domain, URL, IP adresi, kurum, GitHub deposu, yazılım paketi ve dosya özeti (hash) hakkında kamuya açık
-bilgileri seçtiğiniz kaynaklardan toplar, kaynak bağlantısı ve erişim zamanıyla saklar, PDF/CSV/JSON olarak raporlar.
+A free, open-source, local-first OSINT (open-source intelligence) app for Android.
+It collects public information about domains, URLs, IP addresses, organisations, GitHub repositories,
+software packages and file hashes from sources you choose, keeps every finding with its source link and
+retrieval time, and turns it into PDF, CSV or JSON reports.
 
-> Uygulama kimliği: `io.github.smyrna_pergamum.osintbook` (GitHub hesabına dayanır, şartname FD-02). İlk yayından sonra değiştirilmemelidir.
+> Application ID: `io.github.smyrna_pergamum.osintbook` (based on the GitHub account, spec FD-02). It must not change after the first release.
 
-## Özellikler
-- Araştırma dosyaları: oluşturma, yeniden adlandırma, kopyalama, arşivleme, silme, yerel arama
-- Hedef türleri: Domain (IDN), URL (gizli parametre uyarısı), IPv4/IPv6, Kurum, Depo/hesap, Paket, Hash
-- 22 kaynak modülü (bkz. [docs/API_REGISTRY.md](docs/API_REGISTRY.md)). Anahtarsız olanlar hemen çalışır, anahtarlılar kullanıcının kendi ücretsiz anahtarıyla
-- Dört kaynaktan IP konumu (ipwho.is, ipapi.co ve GeoJS anahtarsız; BigDataCloud anahtarlı), OpenStreetMap haritasında işaretleme, enlem/boylam, Nominatim ile şehir düzeyinde yaklaşık adres
-- Ping (aktif kontrol, varsayılan olarak kapalı)
-- Kural tabanlı analiz: domain yaşı ve kayıt durumu, SPF/DMARC/CAA/DNSSEC, CDN izleri, IP konum tutarlılığı, sağlayıcı bazında tehdit bulguları, ilişki ve hedef önerileri, zaman çizelgesi, eksik kaynaklar. Uygulamada "Analiz" sekmesinde ve raporun en üstünde; genel risk puanı yoktur
-- Sorguya göre gruplanmış bulgular; inceleme durumu, favori, etiket, not, ilişki (kaynakta belirtilen / çıkarım)
-- Rapor: PDF önizleme; PDF/CSV/JSON kaydetme (SAF) ve paylaşma (FileProvider); metin özeti paylaşma
-- JSON içe aktarma (boyut ve kayıt sınırları, yeni kimlikler, otomatik sorgu yok)
-- 9 dil (Türkçe, English, Deutsch, Français, Español, Italiano, Português, Русский, العربية); açık/koyu tema
-- Hesap, reklam, izleme veya telemetri yok. API anahtarları Android Keystore (AES-GCM) ile şifreli tutulur; veriler yedeklemeye alınmaz
+## Features
+- Investigations: create, rename, copy, archive, delete, local search
+- Target types: domain (IDN), URL (warns about secret parameters), IPv4/IPv6, organisation, repository/account, package, file hash
+- 22 source modules (see [docs/API_REGISTRY.md](docs/API_REGISTRY.md)). Key-free sources work immediately; key-based ones use the user's own free key
+- IP geolocation from four sources (ipwho.is, ipapi.co and GeoJS without a key; BigDataCloud with a key), markers on an OpenStreetMap map, latitude/longitude, city-level approximate address via Nominatim
+- Ping (active check, off by default)
+- Rule-based analysis: domain age and registration status, SPF/DMARC/CAA/DNSSEC, CDN hints, IP location consistency, threat findings per provider, relation and target suggestions, timeline, missing sources. Shown in the "Analysis" tab and at the top of the report; there is no overall risk score
+- Findings grouped by query; review status, favourites, tags, notes, relations (stated by the source / inferred)
+- Reports: PDF preview with zoom; save (Storage Access Framework) and share (FileProvider) as PDF, CSV or JSON; plain-text summary sharing
+- JSON import (size and record limits, new IDs, never starts a query)
+- 9 languages (English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский, العربية); light and dark theme
+- No account, ads, tracking or telemetry. API keys are encrypted with Android Keystore (AES-GCM); app data is excluded from backups
 
-## Kurulum
-Henüz F-Droid'de değil. Kaynaktan derlemek için aşağıdaki talimatları izleyin.
+## Installation
+Not on F-Droid yet. Build from source with the instructions below.
 
-## Derleme
-Bkz. [BUILDING.md](BUILDING.md).
+## Building
+See [BUILDING.md](BUILDING.md).
 
-## Lisans
-GPL-3.0-or-later. Bkz. [LICENSE](LICENSE) ve [THIRD_PARTY.md](THIRD_PARTY.md).
+## Privacy
+See [PRIVACY.md](PRIVACY.md).
+
+## Licence
+GPL-3.0-or-later. See [LICENSE](LICENSE) and [THIRD_PARTY.md](THIRD_PARTY.md).
