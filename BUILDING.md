@@ -1,18 +1,18 @@
-# Derleme
+# Building
 
-Gereksinimler: OpenJDK 17+ (21 ile test edildi) ve Android SDK (platform 36, build-tools 36.0.0). Ücretli servis, gizli CI değişkeni veya hesap gerekmez.
+Requirements: OpenJDK 17+ (tested with 21) and the Android SDK (platform 36, build-tools 36.0.0). No paid service, secret CI variable or account is needed.
 
 ```
 echo "sdk.dir=/path/to/Android/Sdk" > local.properties
-./gradlew testDebugUnitTest      # birim testleri
+./gradlew testDebugUnitTest      # unit tests
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
-./gradlew assembleRelease        # imzasız: app/build/outputs/apk/release/app-release-unsigned.apk
+./gradlew assembleRelease        # unsigned: app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
-Sürümler sabittir (FD-03): Gradle 8.14.3, AGP 8.13.2, Kotlin 2.2.21, KSP 2.2.21-2.0.5. Dinamik `+` veya SNAPSHOT bağımlılık yoktur.
+Versions are pinned (FD-03): Gradle 8.14.3, AGP 8.13.2, Kotlin 2.2.21, KSP 2.2.21-2.0.5. There are no dynamic `+` or SNAPSHOT dependencies.
 
-## İmzalama
-İmzalı release için depo dışında tutulan `signing/keystore.properties` dosyasını oluşturun (`.gitignore` içindedir):
+## Signing
+For a signed release, create `signing/keystore.properties` outside version control (it is in `.gitignore`):
 
 ```
 storeFile=signing/release.jks
@@ -21,4 +21,4 @@ keyAlias=...
 keyPassword=...
 ```
 
-İmza anahtarını depoya koymayın ve çevrimdışı yedekleyin. F-Droid uygulamayı kendi imzasıyla derleyebilir. Doğrudan dağıtılan APK ile aynı imzayı korumak için yeniden üretilebilir derleme gerekir (şartname §7).
+Never commit the signing key and keep an offline backup. F-Droid may build and sign the app with its own key. Keeping the same signature as a directly distributed APK requires a reproducible build (spec §7).

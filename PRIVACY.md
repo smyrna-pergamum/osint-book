@@ -1,11 +1,12 @@
-# Gizlilik
+# Privacy
 
-- **Yerelde tutulanlar:** araştırmalar, hedefler, bulgular, notlar, etiketler, ilişkiler. Ham yanıtlar isteğe bağlıdır (varsayılan kapalı, en fazla 30 gün).
-- **Şifrelenenler:** API anahtarları, Android Keystore'daki bir AES-GCM anahtarıyla. Veritabanı ayrıca şifrelenmez.
-- **Yedekleme:** tüm uygulama verisi bulut yedeklemesinden ve cihazdan cihaza aktarımdan hariçtir.
-- **Ağ:** ilk açılışta ve yalnızca yerel kullanımda istek yapılmaz. Sorgu başlattığınızda yalnızca o kaynağın ihtiyaç duyduğu hedef değeri ve cihazınızın IP adresi seçtiğiniz sağlayıcıya gider. Her sorgudan önce neyin hangi adrese gideceği gösterilir.
-- **Ping:** aktif bir kontroldür; paketler doğrudan hedefe gider. Varsayılan olarak seçili değildir.
-- **Harita:** harita ekrandayken o bölgenin harita karoları tile.openstreetmap.org adresinden yüklenir. "Yaklaşık adresi bul" koordinatları nominatim.openstreetmap.org adresine gönderir.
-- **Toplanmayanlar:** rehber, SMS, konum, mikrofon, dosyalar, pano, tarama geçmişi, analitik, reklam kimliği.
-- **Dışa aktarma:** dosyalar yalnızca seçtiğiniz yere kaydedilir veya paylaştığınız uygulamaya gider ve API anahtarı içermez. Araştırmayı silmek, dışa aktarılmış dosyaları silmez.
-- IP konumu bir ağın tahmini konumudur; bir kişinin veya cihazın konumu değildir. Bilginin kamuya açık olması, kişisel verilerin sınırsız yeniden yayımlanmasına izin vermez.
+- **Stored locally:** investigations, targets, findings, notes, tags, relations. Raw responses are optional (off by default, kept at most 30 days).
+- **Encrypted:** API keys, with an AES-GCM key held in Android Keystore. The database itself is not additionally encrypted.
+- **Backups:** all app data is excluded from cloud backup and device-to-device transfer.
+- **Network:** nothing is sent on first launch or during local-only use. When you start a query, only the target value that source needs and your device's IP address reach the provider you chose. Before each query the app shows what goes where.
+- **Ping:** an active check; packets go straight to the target. It is never preselected.
+- **Maps:** while a map is on screen, map tiles for that area load from tile.openstreetmap.org. Reports with a map download those tiles once. "Find approximate address" sends coordinates to nominatim.openstreetmap.org.
+- **Analysis:** computed on the device from stored findings; it makes no network request.
+- **Never collected:** contacts, SMS, location, microphone, files, clipboard, browsing history, analytics, advertising ID.
+- **Export:** files are only written where you save them or sent to the app you share with, and never contain API keys. Deleting an investigation does not delete files you exported.
+- IP geolocation estimates where a network is registered or routed; it is not the location of a person or device. Information being public does not make unlimited republishing of personal data acceptable.
