@@ -50,7 +50,7 @@ android {
         }
     }
 
-    // F-Droid: no Google dependency-info blob in the APK.
+    // No Google dependency-info blob in the APK.
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
