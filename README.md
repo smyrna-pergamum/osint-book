@@ -97,8 +97,6 @@ Download the APK from the [latest release](https://github.com/smyrna-pergamum/os
 
 Check that the file is genuine by comparing its SHA-256 and the signing certificate fingerprint with the values in the release notes.
 
-An F-Droid submission is planned.
-
 ## Build from source
 
 Requires OpenJDK 17+ and the Android SDK (platform 36). No paid service or account is needed.
