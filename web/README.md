@@ -1,6 +1,6 @@
 # OSINT-Book Web 0.2 — Windows and local networks
 
-Run OSINT-Book in Edge or Chrome using a Windows server. The interface starts in English; English, Turkish and German are available through the language selector. All users share the same investigations.
+Run OSINT-Book in Edge or Chrome using a Windows server. The interface is available in English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский and العربية (right-to-left). It follows the browser language until a user picks one with the language selector. All users share the same investigations.
 
 ## Start the Windows package
 
@@ -36,7 +36,21 @@ The Map tab displays coordinate findings. Load map contacts OpenStreetMap; IP co
 
 Cancel buttons stop individual providers, target queries or all investigation queries. Forms can be dismissed and pending browser requests can be aborted. Cancelling a browser request does not undo a save already completed on the server; refresh to check the result. Successful findings remain available after query cancellation.
 
-Research, targets, evidence review, notes, tags, relations, JSON import/export, CSV export and browser Print / Save as PDF are supported. The rule-based analysis is included alongside the optional local AI analysis described below.
+Research, targets, evidence review, notes, tags, relations, JSON import/export and CSV export are supported. The rule-based analysis is included alongside the optional AI analysis described below.
+
+To delete an investigation, use **Delete** on its card under **All investigations**, or **Edit → Delete** inside it. Its targets, findings, evidence, notes, AI analysis and report settings are removed.
+
+The admin panel's **Activity log** has a **Refresh** button for new entries.
+
+## Prepare report
+
+**Prepare report** (next to **Edit** in an investigation) opens the report page. It follows the *OSINT Analysis Report* template and its data schema (`report`, `target`, `scope`, `metrics`, `sources`, `findings`, `quality`, `risks`, `recommendations`, `review`):
+
+- Enter the research question, report status, overall confidence, review decision, reviewer and the owner of recommended actions, then **Save report details**. Report numbers (`RPR-0001`, …) are assigned once per investigation.
+- Sources are numbered `K-001`, … (one per provider and source URL, with retrieval time, SHA-256 of the evidence excerpt and verification state). Findings are numbered `B-01`, …: with an AI analysis, each AI observation becomes a finding with its direct observation, AI interpretation, alternative explanations, confidence and linked sources; without one, the findings are listed without interpretation.
+- **Download PDF** prints the report on the server with Microsoft Edge (included in Windows) or Chrome in headless mode. **Download HTML** and **Download report JSON** are also available, plus the full investigation JSON and findings CSV.
+- The page also shows a live preview, the AI analysis, the rule-based analysis and all query results and findings.
+- The report is written in the interface language. Model names are not printed in the report.
 
 ## Local AI analysis
 
@@ -61,6 +75,8 @@ Rough guide with Q4_K_M files: 0.5B–1.5B models run on 8 GB RAM computers; 4B 
 
 ### Analyze with AI (user panel → investigation → Analysis)
 
+Every signed-in user can choose any installed local model or any enabled cloud provider, and the language of the AI output. A local model that is not loaded yet is loaded automatically before the analysis. One analysis runs on the server at a time.
+
 Select up to 100 findings and choose **Analyze with AI**. Only those findings, with their source, retrieval time, verification status and evidence excerpts, are sent to the local model. The result shows:
 
 - an English **summary**;
@@ -71,6 +87,15 @@ Select up to 100 findings and choose **Analyze with AI**. Only those findings, w
 Findings are given to the model as references F1, F2, … and mapped back to the real findings; references the model invents are removed and counted. Generation is constrained to a JSON schema. Progress shows the tokens read and written, and the analysis can be cancelled without unloading the model. One analysis runs at a time on the server.
 
 The original findings, evidence and verification statuses are never changed. The latest result for each investigation is saved in `data/ai-analyses` and marked when the findings it used are later edited or deleted. AI results are interpretations, can be wrong, and are not included in JSON/CSV exports or the Android-compatible format.
+
+### Cloud and API providers (admin panel → AI Models → Cloud & API)
+
+Administrators can add providers from the free AI API list at [github.com/OuterSpacee/free-ai-apis](https://github.com/OuterSpacee/free-ai-apis): Google AI Studio (Gemini), Groq, Cerebras, OpenRouter, Hugging Face Inference, Mistral, Cohere, Together AI, Fireworks, DeepInfra, SambaNova, Novita, Hyperbolic, AI/ML API and DeepSeek, local servers (Ollama, LM Studio, LiteLLM), or any other OpenAI-compatible API. Enter the API key and model, use **Fetch models** to list current model names, and **Test** to check the key. Puter is not included because it works only in the browser, and code-completion services are not chat models.
+
+- API keys are stored with AES-GCM in the server key vault, never returned to the browser, and removed with the provider.
+- Internet providers must use HTTPS; plain HTTP is allowed only for this computer or private-network addresses.
+- A cloud analysis sends the selected findings to that provider under its terms. Users must confirm this every time, and each cloud analysis is recorded in the activity log with the provider and model. Local servers do not need this confirmation.
+- Free tiers, limits and model names change; check the provider before relying on it.
 
 Limitations: small models produce shorter and less precise analysis; if the selected findings do not fit the context size, select fewer findings or reactivate the model with a larger context. CUDA-specific and multi-GPU tuning are not provided; NVIDIA GPUs use the Vulkan build.
 

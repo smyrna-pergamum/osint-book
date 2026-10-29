@@ -47,7 +47,7 @@ suspend fun ApplicationCall.body(limit: Int = 64 * 1024): ByteArray {
 suspend fun ApplicationCall.input(): JsonObject = wire.parseToJsonElement(body().toString(Charsets.UTF_8)).jsonObject
 
 enum class Panel { USER, ADMIN, BOTH }
-fun Application.webModule(store: Store, queries: Queries, password: String, hosts: Set<String>, initialUsername: String = "admin", panel: Panel = Panel.BOTH, access: Access = Access(store), ai: LocalAi? = null) {
+fun Application.webModule(store: Store, queries: Queries, password: String, hosts: Set<String>, initialUsername: String = "admin", panel: Panel = Panel.BOTH, access: Access = Access(store), ai: LocalAi? = null, cloud: CloudAi? = null, reports: Reports? = null) {
     if(store.users().isEmpty()) store.addUser(initialUsername,password,true)
     val cookieName = if(panel == Panel.ADMIN) "osint_admin_session" else "osint_session"
     val hub = HuggingFaceHub()
@@ -55,7 +55,9 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         call.response.header("X-Content-Type-Options", "nosniff")
         call.response.header("Referrer-Policy", "no-referrer")
         call.response.header("Cache-Control", "no-store")
-        call.response.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src https://www.openstreetmap.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        // Generated reports use inline styles only and are previewed in a same-origin frame.
+        call.response.header("Content-Security-Policy", if(call.request.path().endsWith("/report.html")) "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'"
+            else "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         val hostHeader = call.request.header("Host").orEmpty()
         val host = runCatching { URI("http://$hostHeader").host?.trim('[', ']')?.lowercase() }.getOrNull()
         if (host !in hosts) { call.respond(HttpStatusCode.Forbidden); finish(); return@intercept }
@@ -97,10 +99,10 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         get("/admin.js") { if(panel == Panel.USER) call.respond(HttpStatusCode.NotFound) else call.respondText(resource("admin.js"),ContentType.Application.JavaScript) }
         get("/app.js") { call.respondText(resource("app.js"), ContentType.Application.JavaScript) }
         get("/style.css") { call.respondText(resource("style.css"), ContentType.Text.CSS) }
-        get("/i18n.js") { call.respondText(resource("i18n.js"),ContentType.Application.JavaScript) }
+        get("/i18n.js") { call.respondText(I18n.script,ContentType.Application.JavaScript) }
         get("/analysis/{lang}.json") {
-            val lang=call.parameters["lang"]!!;require(lang in setOf("en","tr","de"))
-            call.respondText(resource("analysis-$lang.json"),ContentType.Application.Json)
+            val lang=I18n.of(call.parameters["lang"])
+            call.respondText(runCatching { resource("analysis-$lang.json") }.getOrElse { resource("analysis-en.json") },ContentType.Application.Json)
         }
         post("/api/login") {
             val input=call.input()
@@ -161,7 +163,7 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         get("/api/admin/ai/hardware") { call.json(withContext(Dispatchers.IO) { ai?.hardware() ?: AiHostInfo.snapshot(emptyList(),false,false) }) }
         get("/api/admin/ai/status") { val a=localAi(); call.json(buildJsonObject {
             put("download",a.downloadStatus());put("engine",a.engineStatus());put("installed",wire.encodeToJsonElement(a.installed()))
-            put("active",wire.encodeToJsonElement(a.activeModel()));put("settings",wire.encodeToJsonElement(a.activeSettings()));put("defaultThreads",a.defaultThreads())
+            put("active",wire.encodeToJsonElement(a.activeModel()));put("settings",wire.encodeToJsonElement(a.activeSettings()));put("defaultThreads",a.defaultThreads());put("storageBytes",a.storageBytes())
         }) }
         get("/api/admin/ai/recommendations") { call.json(localAi().recommendations()) }
         post("/api/admin/ai/download") { val input=call.input();localAi().download(input.text("repository",200),input.text("filename",240));call.json(obj("status" to "started")) }
@@ -180,6 +182,41 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         get("/api/admin/ai/repository") {
             val repo=call.request.queryParameters["id"].orEmpty()
             call.json(withContext(Dispatchers.IO) { localAi().repository(repo) })
+        }
+        fun cloudAi()=cloud ?: throw IllegalArgumentException("ai_runtime_missing")
+        get("/api/admin/ai/cloud") { val c=cloudAi();call.json(buildJsonObject {
+            put("providers",JsonArray(c.list().map(c::view)));put("presets",wire.encodeToJsonElement(CloudPresets.all))
+        }) }
+        post("/api/admin/ai/cloud") {
+            val input=call.input()
+            val p=cloudAi().add(input.text("preset",40),input.text("name",80),input.text("baseUrl",300),input.text("model",200),input.text("apiKey",4096),input.text("contextTokens",8).toIntOrNull() ?: 32768)
+            call.json(cloudAi().view(p))
+        }
+        patch("/api/admin/ai/cloud/{id}") {
+            val input=call.input()
+            cloudAi().update(call.parameters["id"]!!,input.text("model",200).takeIf { "model" in input },if("enabled" in input) input.flag("enabled") else null,
+                input.text("apiKey",4096).takeIf { it.isNotBlank() },input.text("contextTokens",8).toIntOrNull())
+            call.json(obj("status" to "ok"))
+        }
+        delete("/api/admin/ai/cloud/{id}") { cloudAi().delete(call.parameters["id"]!!);call.json(obj("status" to "ok")) }
+        post("/api/admin/ai/cloud/models") {
+            val input=call.input()
+            call.json(JsonArray(withContext(Dispatchers.IO) { cloudAi().models(input.text("baseUrl",300),input.text("apiKey",4096),input.text("id",64).ifBlank { null }) }.map(::JsonPrimitive)))
+        }
+        post("/api/admin/ai/cloud/{id}/test") { val model=withContext(Dispatchers.IO) { cloudAi().test(call.parameters["id"]!!) };call.json(obj("status" to "ok","model" to model)) }
+        get("/api/ai/engines") {
+            val a=ai;val c=cloud
+            call.json(buildJsonObject {
+                put("state",a?.engineStatus()?.get("state") ?: JsonPrimitive("unavailable"))
+                put("activeModelId",a?.activeModel()?.id?.let(::JsonPrimitive) ?: a?.activeSettings()?.modelId?.let(::JsonPrimitive) ?: JsonNull)
+                put("local",JsonArray(a?.installed().orEmpty().map { m -> buildJsonObject {
+                    put("id",m.id);put("repository",m.repository);put("filename",m.filename);put("size",m.size)
+                    put("quantization",AiCatalog.quantization(m.filename)?.let(::JsonPrimitive) ?: JsonNull)
+                } }))
+                put("cloud",JsonArray(c?.list().orEmpty().filter { it.enabled }.map { p -> buildJsonObject {
+                    put("id",p.id);put("name",p.name);put("model",p.model);put("local",CloudPresets.all.firstOrNull { it.id==p.preset }?.local==true)
+                } }))
+            })
         }
         get("/api/ai/status") {
             val a=ai;val model=a?.activeModel()
@@ -227,7 +264,20 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         }
         post("/api/investigations/{id}/ai-analysis") {
             val b=store.get(call.parameters["id"]!!) ?: throw NoSuchElementException()
-            localAi().analyze(b,call.input().strings("findingIds"));call.json(obj("status" to "started"),HttpStatusCode.Accepted)
+            val input=call.input();val choice=input.text("engine",120)
+            val engine=when {
+                choice.startsWith("cloud:") -> {
+                    val backend=cloudAi().backend(choice.removePrefix("cloud:"))
+                    // Findings leave this server: require explicit consent for every cloud analysis and record the provider.
+                    require(input.flag("confirmCloud") || CloudPresets.all.firstOrNull { it.id==backend.provider.preset }?.local==true){"ai_cloud_consent_required"}
+                    access.user(call.request.cookies[cookieName])?.let { store.audit(it.name,"ai_cloud_analysis","${backend.provider.name} · ${backend.provider.model}") }
+                    LocalAi.Engine.Cloud(backend)
+                }
+                choice.startsWith("local:") -> LocalAi.Engine.Local(choice.removePrefix("local:"))
+                else -> LocalAi.Engine.Local(null)
+            }
+            withContext(Dispatchers.IO) { localAi().analyze(b,input.strings("findingIds"),engine,input.text("language",8)) }
+            call.json(obj("status" to "started"),HttpStatusCode.Accepted)
         }
         get("/api/investigations/{id}/ai-analysis") {
             val b=store.get(call.parameters["id"]!!) ?: throw NoSuchElementException()
@@ -253,7 +303,7 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         }
         delete("/api/investigations/{id}") {
             val id = call.parameters["id"]!!
-            queries.delete(id); ai?.forget(id); call.json(obj("status" to "ok"))
+            queries.delete(id); ai?.forget(id); reports?.forget(id); call.json(obj("status" to "ok"))
         }
         post("/api/investigations/{id}/targets") {
             val id = call.parameters["id"]!!; val input = call.input(); val raw = input.text("value")
@@ -333,6 +383,39 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
                 put("timeline",buildJsonArray { analysis.timeline.forEach { e -> add(obj("at" to e.at,"targetId" to e.targetId,"providerId" to e.providerId,"label" to e.label,"value" to e.value,"findingId" to e.findingId)) } })
             })
         }
+        fun reportsOrFail()=reports ?: throw IllegalArgumentException("operation_failed")
+        fun reportName(data: JsonObject)=data["report"]!!.jsonObject["id"]!!.jsonPrimitive.content
+        fun ApplicationCall.reportData(): Pair<JsonObject,String> {
+            val b=store.get(parameters["id"]!!) ?: throw NoSuchElementException()
+            val lang=I18n.of(request.queryParameters["lang"])
+            return reportsOrFail().data(b,ai?.analysisStatus(b.investigation.id),lang) to lang
+        }
+        get("/api/investigations/{id}/report") {
+            val r=reportsOrFail();val (data,_)=call.reportData()
+            call.json(buildJsonObject {put("settings",wire.encodeToJsonElement(r.settings(call.parameters["id"]!!)));put("data",data)
+                put("options",buildJsonObject {put("status",JsonArray(r.statuses.map(::JsonPrimitive)));put("confidence",JsonArray(r.confidences.map(::JsonPrimitive)));put("decision",JsonArray(r.decisions.map(::JsonPrimitive)))})})
+        }
+        put("/api/investigations/{id}/report") {
+            val id=call.parameters["id"]!!;store.get(id) ?: throw NoSuchElementException();val input=call.input()
+            val saved=reportsOrFail().save(id,ReportSettings(0,input.text("researchQuestion",2000),input.text("status",20),input.text("confidence",20),input.text("verifier",120),input.text("owner",120),input.text("decision",20)))
+            call.json(wire.encodeToJsonElement(saved))
+        }
+        get("/api/investigations/{id}/report.json") {
+            val (data,_)=call.reportData()
+            call.response.header("Content-Disposition","attachment; filename=\"${reportName(data)}.json\"")
+            call.respondText(Json { prettyPrint=true }.encodeToString(JsonObject.serializer(),data),ContentType.Application.Json)
+        }
+        get("/api/investigations/{id}/report.html") {
+            val (data,lang)=call.reportData()
+            if(call.request.queryParameters["download"]=="1") call.response.header("Content-Disposition","attachment; filename=\"${reportName(data)}.html\"")
+            call.respondText(reportsOrFail().html(data,lang),ContentType.Text.Html)
+        }
+        get("/api/investigations/{id}/report.pdf") {
+            val (data,lang)=call.reportData()
+            val pdf=withContext(Dispatchers.IO) { reportsOrFail().pdf(reportsOrFail().html(data,lang)) }
+            call.response.header("Content-Disposition","attachment; filename=\"${reportName(data)}.pdf\"")
+            call.respondBytes(pdf,ContentType.Application.Pdf)
+        }
         get("/api/investigations/{id}/export/{format}") {
             val b = store.get(call.parameters["id"]!!) ?: throw NoSuchElementException()
             val format = call.parameters["format"]!!; require(format in setOf("json","csv"))
@@ -370,10 +453,12 @@ fun main() {
         console?.let { c -> { prompt -> c.readLine("%s", prompt) } },
         console?.let { c -> { prompt -> c.readPassword("%s", prompt)?.concatToString() } })
     val queries = Queries(store)
+    val cloud=CloudAi(dir,queries.secrets)
+    val reports=Reports(dir) { id -> webProviders.firstOrNull { it.id==id }?.name ?: id }
     val ai=LocalAi(dir,Path.of(System.getenv("OSINT_AI_RUNTIME") ?: "ai-runtime","llama-server.exe"),Path.of(System.getenv("OSINT_AI_RUNTIME_GPU") ?: "ai-runtime-gpu","llama-server.exe"))
     val access=Access(store)
-    val server = embeddedServer(Netty, host = host, port = ports.user) { webModule(store, queries, password, hosts, username,Panel.USER,access,ai) }
-    val admin = embeddedServer(Netty, host = "127.0.0.1", port = ports.admin) { webModule(store, queries, password, setOf("localhost","127.0.0.1"), username,Panel.ADMIN,access,ai) }
+    val server = embeddedServer(Netty, host = host, port = ports.user) { webModule(store, queries, password, hosts, username,Panel.USER,access,ai,cloud,reports) }
+    val admin = embeddedServer(Netty, host = "127.0.0.1", port = ports.admin) { webModule(store, queries, password, setOf("localhost","127.0.0.1"), username,Panel.ADMIN,access,ai,cloud,reports) }
     Runtime.getRuntime().addShutdownHook(Thread { admin.stop(500,3000); server.stop(500,3000); ai.close(); queries.close(); store.close() })
     try {
         admin.start(wait=false)

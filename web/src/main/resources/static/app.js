@@ -127,7 +127,7 @@ function dashboard() {
   return h('div',{},h('section',{class:'page-head'},h('div',{},h('h1',{},tr("Your research, together.")),h('p',{},tr("Collect public information, review findings and report with sources."))),h('div',{class:'actions'},btn(tr("Import JSON"),importDialog),btn(tr("+ New investigation"),createInvestigation,'primary'))),
     h('section',{class:'stats'},stat(tr("Active investigations"),state.list.filter(b=>!b.investigation.archivedAt).length,tr("In the shared workspace")),stat(tr("Research targets"),state.list.reduce((n,b)=>n+b.targets,0),tr("Domains, IPs and more")),stat(tr("Saved findings"),state.list.reduce((n,b)=>n+b.findings,0),tr("With source and retrieval time"))),
     h('div',{class:'section-line'},h('div',{class:'actions'},h('h2',{},state.archive?tr("Archive"):tr("Investigation files")),btn(state.archive?tr("Show active"):tr("Show archive"),()=>{state.archive=!state.archive;render();})),search),
-    visible.length ? h('div',{class:'cards'},visible.map(b=>h('article',{class:'card'},h('div',{class:'card-top'},h('div',{class:'icon-box'},'⌕'),pill(b.investigation.archivedAt?tr("Archive"):tr("Active"),b.investigation.archivedAt?'':'ok')),h('h3',{},b.investigation.title),h('p',{class:'muted'},b.investigation.description || tr("Add targets and choose sources to begin.")),h('div',{class:'card-meta'},`${b.targets} ${tr("targets")}`,`${b.findings} ${tr("findings")}`),h('footer',{},h('small',{},date(b.investigation.updatedAt)),btn(tr("Open →"),()=>openInvestigation(b.investigation.id),'link-button'))))) : empty(tr("No investigations yet"),tr("Create an investigation or import an Android JSON export.")),
+    visible.length ? h('div',{class:'cards'},visible.map(b=>h('article',{class:'card'},h('div',{class:'card-top'},h('div',{class:'icon-box'},'⌕'),pill(b.investigation.archivedAt?tr("Archive"):tr("Active"),b.investigation.archivedAt?'':'ok')),h('h3',{},b.investigation.title),h('p',{class:'muted'},b.investigation.description || tr("Add targets and choose sources to begin.")),h('div',{class:'card-meta'},`${b.targets} ${tr("targets")}`,`${b.findings} ${tr("findings")}`),h('footer',{},h('small',{},date(b.investigation.updatedAt)),h('div',{class:'actions'},btn(tr("Delete"),()=>deleteInvestigationDialog(b.investigation),'danger'),btn(tr("Open →"),()=>openInvestigation(b.investigation.id),'link-button')))))) : empty(tr("No investigations yet"),tr("Create an investigation or import an Android JSON export.")),
     h('p',{class:'footer-note'},tr("Automatic analysis does not replace manual verification.")));
 }
 function stat(label,value,detail) { return h('div',{class:'stat'},h('span',{},label),h('strong',{},value),h('span',{},detail)); }
@@ -148,14 +148,14 @@ function importDialog() {
 }
 function investigationView() {
   const b=state.bundle, inv=b.investigation;
-  const tabs={targets:`${tr("Targets")} · ${b.targets.length}`,findings:`${tr("Findings")} · ${b.findings.length}`,analysis:tr("Analysis"),map:tr('Map'),notes:tr("Notes & relations"),report:tr("Report")};
+  const tabs={targets:`${tr("Targets")} · ${b.targets.length}`,findings:`${tr("Findings")} · ${b.findings.length}`,analysis:tr("Analysis"),map:tr('Map'),notes:tr("Notes & relations"),report:tr("Prepare report")};
   const page = state.tab==='targets'?targetsView():state.tab==='findings'?findingsView():state.tab==='analysis'?analysisView():state.tab==='map'?mapView():state.tab==='notes'?notesView():reportView();
-  return h('div',{},h('div',{class:'page-head'},h('div',{},h('h1',{},inv.title),h('p',{},inv.description || tr("Choose sources to extend your research.")),inv.archivedAt?pill(tr("Archived investigation"),'warn'):null),h('div',{class:'actions'},btn(tr("Edit"),editInvestigation),btn(tr("Export"),exportDialog))),h('nav',{class:'tabs','aria-label':tr("Investigation sections")},Object.entries(tabs).map(([id,label])=>btn(label,()=>{state.tab=id;render();},state.tab===id?'selected':''))),page);
+  return h('div',{},h('div',{class:'page-head'},h('div',{},h('h1',{},inv.title),h('p',{},inv.description || tr("Choose sources to extend your research.")),inv.archivedAt?pill(tr("Archived investigation"),'warn'):null),h('div',{class:'actions'},btn(tr("Edit"),editInvestigation),btn(tr("Prepare report"),()=>{state.tab='report';render();},'primary'))),h('nav',{class:'tabs','aria-label':tr("Investigation sections")},Object.entries(tabs).map(([id,label])=>btn(label,()=>{state.tab=id;render();},state.tab===id?'selected':''))),page);
 }
 function editInvestigation() {
   const inv=state.bundle.investigation;
   const form=h('form',{class:'form-grid'},field(tr("Title"),h('input',{name:'title',value:inv.title,required:true,maxlength:300})),field(tr("Description"),h('textarea',{name:'description',maxlength:20000},inv.description)),h('button',{type:'submit',class:'primary'},tr("Save")));
-  const d=modal(tr("Edit investigation"),form,[btn(inv.archivedAt?tr("Unarchive"):tr("Archive investigation"),async()=>{await api(base(),'PATCH',{archived:!inv.archivedAt});d.close();await refresh();}),btn(tr("Delete"),()=>{modal(tr("Delete this investigation?"),h('p',{},`${inv.title}: ${tr("This permanently deletes the investigation and its records.")}`),[btn(tr("Cancel"),()=>$('#dialog').close()),btn(tr("Delete investigation"),async()=>{await api(base(),'DELETE');$('#dialog').close();state.bundle=null;await refresh();history.replaceState(null,'',location.pathname);},'danger')]);},'danger')]);
+  const d=modal(tr("Edit investigation"),form,[btn(inv.archivedAt?tr("Unarchive"):tr("Archive investigation"),async()=>{await api(base(),'PATCH',{archived:!inv.archivedAt});d.close();await refresh();}),btn(tr("Delete"),()=>deleteInvestigationDialog(inv),'danger')]);
   formSubmit(form,async data=>{await api(base(),'PATCH',Object.fromEntries(data));d.close();await refresh();});
 }
 function latestRuns(t) {
@@ -223,38 +223,65 @@ function analysisView(report=false) {
   return h('section',{class:report?'':'panel'},h('h2',{},tr("Findings analysis")),h('p',{class:'muted'},tr("Rule-based source analysis. This is not AI commentary and does not produce an overall risk score.")),observations.length?observations.map(o=>h('article',{class:`observation ${o.level==='WARN'?'warn':''}`},pill(o.level==='WARN'?tr("Warning"):o.level==='MISSING'?tr("Missing information"):tr("Information"),o.level==='WARN'?'warn':''),' ',h('small',{},target(o.targetId)),h('p',{},observationText(o)),!report&&o.evidence.length?h('div',{class:'actions'},o.evidence.slice(0,6).map(id=>{const f=state.bundle.findings.find(f=>f.id===id);return f?btn(tr("Evidence: ")+f.label,()=>findingDialog(f)):null;})):null)):empty(tr("Waiting for analysis data"),tr("Add a target and query sources.")),timeline.length?h('div',{},h('h2',{},tr("Timeline")),timeline.map(e=>h('div',{class:'note'},h('strong',{},date(e.at)),` · ${e.label}: ${e.value}`,h('small',{},`${target(e.targetId)} · ${provider(e.providerId)}`)))):null,
     report?null:aiAnalysisView());
 }
-const aiAnalysisErrors={ai_model_not_loaded:'No AI model is active. An administrator must activate one in the admin panel (AI Models → Installed).',ai_runtime_missing:'The AI runtime is not installed on this server.',ai_context_overflow:'The selected findings do not fit in the model context. Select fewer findings, or ask an administrator to activate the model with a larger context size.',ai_output_truncated:'The model reached its output limit before finishing. Select fewer findings and try again.',ai_invalid_output:'The model did not return a valid structured answer. Try again or use a larger model.',ai_engine_error:'The local inference engine returned an error.',ai_analysis_busy:'Another investigation is being analyzed. Try again when it finishes.',ai_analysis_running:'An analysis is already running for this investigation.',ai_invalid_selection:'Select between 1 and 100 findings.'};
+function reviewPill(f){return pill(reviews[f.reviewStatus]||f.reviewStatus,f.reviewStatus==='VERIFIED'?'ok':f.reviewStatus==='CONFLICTING'?'warn':'');}
+const confidenceLabel=c=>({low:tr('Low'),medium:tr('Medium'),high:tr('High')}[c]||'');
+/** Read-only view of a saved AI analysis; used on the Analysis tab and on the report page. */
+function aiResultView(v,b){
+ const out=v.output,secs=Math.round((v.durationMs||0)/1000);
+ const evidence=ids=>h('div',{class:'actions'},ids.map(id=>{const f=b.findings.find(x=>x.id===id);return f?h('button',{type:'button',class:'ai-evidence',onclick:()=>findingDialog(f)},h('span',{},`${tr('Evidence:')} ${provider(f.providerId)} · ${f.label}`),' ',reviewPill(f)):h('small',{class:'muted'},tr('Deleted finding'))}));
+ const list=(title,items,render,emptyText)=>[h('h3',{},title),items.length?h('div',{},items.map(render)):h('p',{class:'muted'},emptyText)];
+ const engineName=v.model?.type==='cloud'?`${v.model.repository} · ${v.model.filename}`:`${v.model?.repository||''} ${v.model?.quantization||''} · ${v.backend==='gpu'?'GPU':'CPU'}`;
+ return [h('div',{class:'ai-result-meta'},pill(tr('AI interpretation'),'warn'),' ',`${engineName} · ${v.findingIds.length} ${tr('findings')} · ${secs}s · ${date(v.completedAt)}`),
+  v.lastAttempt?h('p',{class:'error-text'},v.lastAttempt.state==='cancelled'?tr('The latest analysis was cancelled. Showing the previous result.'):`${tr('The latest analysis failed:')} ${tr(v.lastAttempt.error)} ${tr('Showing the previous result.')}`):null,
+  v.evidenceChanged?h('p',{class:'help'},tr('Findings used in this analysis were edited or deleted afterwards. Run the analysis again for current results.')):null,
+  h('h3',{},tr('Summary')),h('p',{class:'ai-summary'},out.summary),
+  ...list(tr('Evidence-linked observations'),out.observations,o=>h('div',{class:'observation'},o.title?h('strong',{},o.title):null,o.confidence?h('span',{},' ',pill(`${tr('Confidence')}: ${confidenceLabel(o.confidence)}`)):null,h('p',{},o.text),o.counterpoints?h('p',{class:'muted'},`${tr('Alternative explanations:')} ${o.counterpoints}`):null,evidence(o.findingIds)),tr('No observations.')),
+  ...list(tr('Contradictions'),out.contradictions,o=>h('div',{class:'observation warn'},h('p',{},o.text),o.findingIds.length?evidence(o.findingIds):null),tr('No contradictions identified between the selected findings.')),
+  ...list(tr('Missing information'),out.missingInformation,x=>h('li',{},x),tr('None reported.')),
+  ...list(tr('Suggested verification'),out.verificationSteps,x=>h('li',{},x),tr('None reported.')),
+  out.discardedReferences?h('p',{class:'muted'},trf('{count} unsupported reference(s) produced by the model were removed.',{count:out.discardedReferences})):null,
+  h('p',{class:'footer-note'},tr('Generated by a language model from the selected findings only. It may be wrong. Original findings, evidence and review statuses were not changed.'))].filter(x=>x!=null);
+}
 function aiAnalysisView(){
- const b=state.bundle, output=h('div',{id:'ai-analysis-status','aria-live':'polite'},h('p',{class:'muted'},'Checking model status…')), engine=h('div',{class:'ai-engine-line'});
- const reviewPill=f=>pill(reviews[f.reviewStatus]||f.reviewStatus,f.reviewStatus==='VERIFIED'?'ok':f.reviewStatus==='CONFLICTING'?'warn':'');
+ const b=state.bundle, output=h('div',{id:'ai-analysis-status','aria-live':'polite'},h('p',{class:'muted'},tr('Checking model status…'))), engineLine=h('div',{class:'ai-engine-line'});
  const choices=h('div',{class:'ai-choices'},b.findings.map(f=>h('label',{class:'source'},h('input',{type:'checkbox',name:'aiFinding',value:f.id}),h('span',{},h('strong',{},f.label),' · ',f.value.slice(0,180),' ',reviewPill(f),h('small',{},`${target(f.targetId)} · ${provider(f.providerId)}`)))));
  const all=v=>choices.querySelectorAll('input[name=aiFinding]').forEach(x=>x.checked=v);
- let running=false;
- const submitBtn=h('button',{type:'submit',class:'primary'},'Analyze with AI'), cancelBtn=btn('Cancel analysis',async()=>{await api(base('/ai-analysis/cancel'),'POST',{});await aiRefresh()});
- const form=formSubmit(h('form',{},h('div',{class:'ai-choices-head'},h('h3',{},'Select findings'),h('div',{class:'actions'},btn('Select all',()=>all(true)),btn('Clear',()=>all(false)))),choices,h('div',{class:'actions'},submitBtn,cancelBtn)),async()=>{const ids=[...form.querySelectorAll('input[name=aiFinding]:checked')].map(x=>x.value);if(!ids.length)throw Error('Select at least one finding.');try{await api(base('/ai-analysis'),'POST',{findingIds:ids})}catch(e){throw Error(aiAnalysisErrors[e.message]||e.message)}await aiRefresh()});
- const evidence=ids=>h('div',{class:'actions'},ids.map(id=>{const f=b.findings.find(x=>x.id===id);return f?h('button',{type:'button',class:'ai-evidence',onclick:()=>findingDialog(f)},h('span',{},`Evidence: ${provider(f.providerId)} · ${f.label}`),' ',reviewPill(f)):h('small',{class:'muted'},'Deleted finding')}));
- const list=(title,items,render,emptyText)=>[h('h3',{},title),items.length?h('div',{},items.map(render)):h('p',{class:'muted'},emptyText)];
+ const engineSel=h('select',{name:'engine','aria-label':tr('AI model')}), outLang=select('outputLanguage',languages,language);
+ const consent=h('input',{type:'checkbox',name:'confirmCloud'}), consentText=h('span'), consentBox=h('label',{class:'help ai-consent',hidden:true},consent,' ',consentText);
+ let engines=null, running=false;
+ const chosen=()=>{const [kind,id]=engineSel.value.split(':');return kind==='cloud'?{kind,p:engines?.cloud.find(c=>c.id===id)}:{kind,m:engines?.local.find(m=>m.id===id)};};
+ function updateConsent(){const c=chosen();consentBox.hidden=!(c.kind==='cloud'&&c.p&&!c.p.local);if(!consentBox.hidden)consentText.textContent=trf('The selected findings will be sent to {name}, an external service, and processed under its terms. Continue only if this is allowed for your investigation.',{name:c.p.name});}
+ engineSel.onchange=()=>{try{localStorage.setItem('osint-ai-engine',engineSel.value)}catch{}consent.checked=false;updateConsent();};
+ function fillEngines(e){
+  const before=engineSel.value||(()=>{try{return localStorage.getItem('osint-ai-engine')}catch{return null}})()||(e.activeModelId?'local:'+e.activeModelId:'');
+  const local=e.local.map(m=>h('option',{value:'local:'+m.id},`${m.repository} · ${m.quantization||m.filename}${m.id===e.activeModelId?' · '+tr(e.state==='ready'?'loaded':'loading'):''}`));
+  const cloud=e.cloud.map(p=>h('option',{value:'cloud:'+p.id},`${p.name} · ${p.model}`));
+  engineSel.replaceChildren(...(local.length?[h('optgroup',{label:tr('Local models on this server (offline)')},local)]:[]),...(cloud.length?[h('optgroup',{label:tr('Cloud and API providers')},cloud)]:[]));
+  if(!local.length&&!cloud.length)engineSel.append(h('option',{value:''},tr('No AI model available. Ask an administrator to add one.')));
+  if([...engineSel.options].some(o=>o.value===before))engineSel.value=before;updateConsent();
+ }
+ const submitBtn=h('button',{type:'submit',class:'primary'},tr('Analyze with AI')), cancelBtn=btn(tr('Cancel analysis'),async()=>{await api(base('/ai-analysis/cancel'),'POST',{});await aiRefresh()});
+ const form=formSubmit(h('form',{},h('div',{class:'ai-engine-pick'},field(tr('AI model'),engineSel),field(tr('Output language'),outLang)),h('p',{class:'muted ai-lang-note'},tr('Small local models (up to about 4B) write best in English. For other output languages, use a larger model or a cloud provider.')),consentBox,
+  h('div',{class:'ai-choices-head'},h('h3',{},tr('Select findings')),h('div',{class:'actions'},btn(tr('Select all'),()=>all(true)),btn(tr('Clear'),()=>all(false)))),choices,h('div',{class:'actions'},submitBtn,cancelBtn)),async()=>{
+  const ids=[...form.querySelectorAll('input[name=aiFinding]:checked')].map(x=>x.value);if(!ids.length)throw Error(tr('Select at least one finding.'));
+  if(!engineSel.value)throw Error(tr('No AI model available. Ask an administrator to add one.'));
+  if(!consentBox.hidden&&!consent.checked)throw Error(tr('Confirm sending the findings to the cloud provider.'));
+  await api(base('/ai-analysis'),'POST',{findingIds:ids,engine:engineSel.value,language:outLang.value,confirmCloud:consent.checked});await aiRefresh()});
  async function aiRefresh(){
   if(!output.isConnected)return;
-  const [v,s]=await Promise.all([api(base('/ai-analysis')),api('/ai/status')]);if(!output.isConnected)return;
-  engine.replaceChildren(s.state==='ready'&&s.model?h('span',{},pill('Model ready','ok'),' ',`${s.model.repository} · ${s.model.quantization||s.model.filename} · ${s.backend==='gpu'?'GPU':'CPU'} · runs locally, offline`):s.state==='loading'?h('span',{},pill('Loading model','warn'),' The administrator is loading a model.'):h('span',{},pill('No model active','warn'),' An administrator must download and activate a model in the admin panel (AI Models).'));
-  running=v.state==='running';submitBtn.disabled=running||s.state!=='ready';cancelBtn.hidden=!running;
-  if(v.state==='complete'){const out=v.output,secs=Math.round((v.durationMs||0)/1000);
-   output.replaceChildren(...[h('div',{class:'ai-result-meta'},pill('AI interpretation','warn'),' ',`${v.model?.repository||''} ${v.model?.quantization||''} · ${v.backend==='gpu'?'GPU':'CPU'} · ${v.findingIds.length} findings · ${secs}s · ${date(v.completedAt)}`),
-    v.lastAttempt?h('p',{class:'error-text'},v.lastAttempt.state==='cancelled'?'The latest analysis was cancelled. Showing the previous result.':`The latest analysis failed: ${aiAnalysisErrors[v.lastAttempt.error]||v.lastAttempt.error} Showing the previous result.`):null,
-    v.evidenceChanged?h('p',{class:'help'},'Findings used in this analysis were edited or deleted afterwards. Run the analysis again for current results.'):null,
-    h('h3',{},'Summary'),h('p',{class:'ai-summary'},out.summary),
-    ...list('Evidence-linked observations',out.observations,o=>h('div',{class:'observation'},h('p',{},o.text),evidence(o.findingIds)),'No observations.'),
-    ...list('Contradictions',out.contradictions,o=>h('div',{class:'observation warn'},h('p',{},o.text),o.findingIds.length?evidence(o.findingIds):null),'No contradictions identified between the selected findings.'),
-    ...list('Missing information',out.missingInformation,x=>h('li',{},x),'None reported.'),
-    ...list('Suggested verification',out.verificationSteps,x=>h('li',{},x),'None reported.'),
-    out.discardedReferences?h('p',{class:'muted'},`${out.discardedReferences} unsupported reference(s) produced by the model were removed.`):null,
-    h('p',{class:'footer-note'},'Generated by a local language model from the selected findings only. It may be wrong. Original findings, evidence and review statuses were not changed.')].filter(x=>x!=null));}
-  else if(v.state==='running')output.replaceChildren(h('div',{class:'ai-progress'},h('strong',{},v.phase==='writing'?`Writing analysis… ${v.generatedTokens} tokens`:v.phase==='reading'?`Reading ${v.findingIds.length} findings (${v.inputTokens} tokens)…`:'Preparing evidence…'),h('progress',{}),h('small',{},'Running on the local model. CPU analysis can take a few minutes.')));
-  else output.replaceChildren(h('p',{class:v.state==='failed'?'error-text':'muted'},v.state==='failed'?`Analysis failed: ${aiAnalysisErrors[v.error]||v.error}`:v.state==='cancelled'?'Analysis cancelled.':'Select findings and choose Analyze with AI.'));
+  const [v,e]=await Promise.all([api(base('/ai-analysis')),api('/ai/engines')]);if(!output.isConnected)return;
+  if(!engines||JSON.stringify([engines.local.map(m=>m.id),engines.cloud.map(c=>c.id+c.model),engines.activeModelId,engines.state])!==JSON.stringify([e.local.map(m=>m.id),e.cloud.map(c=>c.id+c.model),e.activeModelId,e.state])){engines=e;fillEngines(e);}
+  const c=chosen();
+  engineLine.replaceChildren(c.kind==='cloud'&&c.p?h('span',{},pill(c.p.local?tr('Local server'):tr('Cloud'),c.p.local?'ok':'warn'),' ',c.p.local?tr('Runs on a server on your network.'):tr('Selected findings are sent to the provider over the internet.')):
+   c.m?h('span',{},pill(tr('Offline'),'ok'),' ',e.activeModelId===c.m.id&&e.state==='ready'?tr('The model is loaded and runs on this server.'):tr('The model will be loaded on this server when the analysis starts. This can take a minute.')):
+   h('span',{},pill(tr('No model'),'warn'),' ',tr('No AI model available. Ask an administrator to add one.')));
+  running=v.state==='running';submitBtn.disabled=running||!engineSel.value;cancelBtn.hidden=!running;
+  if(v.state==='complete')output.replaceChildren(...aiResultView(v,b));
+  else if(v.state==='running')output.replaceChildren(h('div',{class:'ai-progress'},h('strong',{},v.phase==='loading'?tr('Loading the selected model…'):v.phase==='writing'?trf('Writing analysis… {count} tokens',{count:v.generatedTokens}):v.phase==='reading'?trf('Reading {count} findings ({tokens} tokens)…',{count:v.findingIds.length,tokens:v.inputTokens}):tr('Preparing evidence…')),h('progress',{}),h('small',{},v.model?.type==='cloud'?tr('Waiting for the provider to answer.'):tr('Running on the local model. CPU analysis can take a few minutes.'))));
+  else output.replaceChildren(h('p',{class:v.state==='failed'?'error-text':'muted'},v.state==='failed'?`${tr('Analysis failed:')} ${tr(v.error)}`:v.state==='cancelled'?tr('Analysis cancelled.'):tr('Select findings and choose Analyze with AI.')));
  }
  queueMicrotask(()=>perform(aiRefresh));const timer=setInterval(()=>{if(!output.isConnected){clearInterval(timer);return}perform(aiRefresh)},2000);
- return h('section',{class:'panel'},h('h2',{},'Analyze with AI'),engine,h('p',{class:'help'},'Only the selected findings are sent, and only to the model running on this server. Nothing leaves the server. AI output is an interpretation that requires review; original evidence and verification statuses are never changed.'),b.findings.length?form:h('p',{},'No findings available. Query sources for a target first.'),output);
+ return h('section',{class:'panel'},h('h2',{},tr('Analyze with AI')),engineLine,h('p',{class:'help'},tr('Only the selected findings are analyzed. Local models run on this server and nothing leaves it; cloud providers receive the selected findings. AI output is an interpretation that requires review; original evidence and verification statuses are never changed.')),b.findings.length?form:h('p',{},tr('No findings available. Query sources for a target first.')),output);
 }
 function notesView() {
   return h('div',{},h('section',{class:'panel'},h('div',{class:'section-line'},h('h2',{},tr("Research notes")),btn(tr("+ Add note"),()=>noteDialog())),state.bundle.notes.length?state.bundle.notes.map(n=>h('div',{class:'note'},n.content,h('small',{},date(n.updatedAt),n.findingId?tr(" · Finding: ")+(state.bundle.findings.find(f=>f.id===n.findingId)?.label||''):''))):h('p',{class:'muted'},tr("Keep context, conclusions and next steps here."))),
@@ -272,13 +299,48 @@ function relationDialog() {
   const form=h('form',{class:'form-grid'},field(tr("From"),select('fromId',nodes)),field(tr("Relation type"),h('input',{name:'type',required:true,placeholder:tr("Example: related infrastructure"),maxlength:100})),field(tr("To"),select('toId',nodes)),field(tr("Description"),h('textarea',{name:'note',maxlength:20000})),h('small',{},tr("This relation will be marked as a user inference.")),h('button',{type:'submit',class:'primary'},tr("Save relation")));
   const d=modal(tr("Add relation"),form);formSubmit(form,async data=>{await api(base('/relations'),'POST',Object.fromEntries(data));d.close();await refresh();});
 }
-function exportDialog() {
-  modal(tr("Reports and export"),h('p',{},tr("JSON carries the full investigation. CSV exports findings. Use the browser Print dialog to save PDF.")),[
-    btn(tr("Download JSON"),()=>downloadReport('json')),btn(tr("Download CSV"),()=>downloadReport('csv')),btn(tr("PDF / Report"),()=>{$('#dialog').close();state.tab='report';render();},'primary')]);
+async function downloadFile(path, filename, label) {
+  const blob=await trackedFetch('/api'+path,{},label,'blob');
+  const url=URL.createObjectURL(blob), a=h('a',{href:url,download:filename});
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
+function deleteInvestigationDialog(inv) {
+  modal(tr("Delete this investigation?"),h('div',{},h('strong',{},inv.title),h('p',{},tr("This permanently deletes the investigation and its records.")),h('p',{class:'muted'},tr('Its targets, findings, evidence, notes, AI analysis and report settings are removed.'))),[btn(tr("Delete investigation"),async()=>{
+    await api(`/investigations/${inv.id}`,'DELETE');$('#dialog').close();
+    if(state.bundle?.investigation.id===inv.id){state.bundle=null;history.replaceState(null,'',location.pathname);}
+    await refresh();notice(tr('Investigation deleted.'));},'danger')]);
+}
+/** "Prepare report": report fields, template report preview and downloads, followed by the analysis and query results it is built from. */
 function reportView() {
-  const b=state.bundle;
-  return h('article',{class:'report panel'},h('div',{class:'actions no-print'},btn(tr("Print / Save PDF"),()=>window.print(),'primary'),btn(tr("Download JSON"),()=>downloadReport('json')),btn(tr("Download CSV"),()=>downloadReport('csv'))),h('h1',{class:'print-only'},b.investigation.title),h('h2',{},tr("Investigation report")),h('p',{},b.investigation.description),h('small',{},`OSINT-Book Web · ${tr("Generated")}: ${date(new Date().toISOString())} · ${tr("All targets and findings included.")}`),h('h2',{},tr("Scope and method")),h('p',{},tr("Queries were initiated by the user. Provider verdicts belong to their sources; no result does not imply safety.")),h('ul',{},b.targets.map(t=>h('li',{},`${types[t.type]}: ${t.displayValue}`))),analysisView(true),h('h2',{},tr("Source queries")),h('ul',{},b.queryRuns.map(r=>h('li',{},`${target(r.targetId)} · ${provider(r.providerId)} · ${statuses[r.status]} · ${date(r.startedAt)}`))),h('h2',{},tr("Findings")),findingTable(b.findings,true),h('h2',{},tr("Notes")),b.notes.map(n=>h('div',{class:'note'},n.content,h('small',{},date(n.updatedAt)))),h('h2',{},tr("Relations")),b.relations.map(r=>h('p',{},`${nodeLabel(r.fromId)} → ${r.type} → ${nodeLabel(r.toId)} (${r.assertionType==='INFERRED'?tr("Inference"):tr("Source stated")}) ${r.note}`)));
+  const b=state.bundle, holder=h('div',{},h('p',{class:'muted'},tr('Loading…')));
+  const label=(map,v)=>tr(map[v]||v);
+  const statusNames={draft:'Draft',in_review:'In review',final:'Final'}, confNames={not_determined:'Not determined',low:'Low',medium:'Medium',high:'High'}, decisionNames={draft:'Draft',approved:'Approved',rejected:'Rejected'};
+  const options=(list,names)=>Object.fromEntries(list.map(v=>[v,label(names,v)]));
+  async function load(){
+    const [r,ai]=await Promise.all([api(base(`/report?lang=${language}`)),api(base('/ai-analysis'))]);if(!holder.isConnected)return;
+    const s=r.settings, d=r.data, id=d.report.id;
+    const form=formSubmit(h('form',{class:'form-grid report-form'},
+      field(tr('Research question'),h('textarea',{name:'researchQuestion',maxlength:2000,placeholder:tr('What should this report answer?')},s.researchQuestion)),
+      h('div',{class:'report-row'},field(tr('Report status'),select('status',options(r.options.status,statusNames),s.status)),field(tr('Overall confidence'),select('confidence',options(r.options.confidence,confNames),s.confidence)),field(tr('Review decision'),select('decision',options(r.options.decision,decisionNames),s.decision))),
+      h('div',{class:'report-row'},field(tr('Reviewer'),h('input',{name:'verifier',maxlength:120,value:s.verifier})),field(tr('Owner of recommended actions'),h('input',{name:'owner',maxlength:120,value:s.owner,placeholder:tr('Analyst')}))),
+      h('div',{class:'actions'},h('button',{type:'submit',class:'primary'},tr('Save report details')))),async data=>{await api(base('/report'),'PUT',Object.fromEntries(data));notice(tr('Saved.'));await load();});
+    const file=ext=>`${id}-${b.investigation.title.replace(/[^\p{L}\p{N}]+/gu,'-').slice(0,40)}.${ext}`;
+    const frame=h('iframe',{class:'report-frame',title:tr('Report preview'),src:`/api${base('/report.html')}?lang=${language}&t=${Date.now()}`});
+    holder.replaceChildren(
+      h('section',{class:'panel'},h('div',{class:'section-line'},h('div',{},h('h2',{},`${tr('Analysis report')} · ${id}`),h('p',{class:'muted'},trf('{sources} sources · {findings} findings · template version 1.0',{sources:d.metrics.sources,findings:d.metrics.findings}))),
+        h('div',{class:'actions'},btn(tr('Download PDF'),()=>downloadFile(base(`/report.pdf?lang=${language}`),file('pdf'),tr('Preparing PDF…')),'primary'),btn(tr('Download HTML'),()=>downloadFile(base(`/report.html?lang=${language}&download=1`),file('html'),tr('Download HTML'))),btn(tr('Download report JSON'),()=>downloadFile(base(`/report.json?lang=${language}`),file('json'),tr('Download report JSON'))))),
+        ai.state!=='complete'?h('p',{class:'help'},tr('No AI analysis yet. The report lists findings without interpretation. Run Analyze with AI on the Analysis tab for AI findings, risks and recommendations.'),' ',btn(tr('Go to Analysis'),()=>{state.tab='analysis';render();})):null,
+        form),
+      h('section',{class:'panel'},h('h2',{},tr('Preview')),frame),
+      h('section',{class:'panel'},h('h2',{},tr('AI analysis')),ai.state==='complete'?h('div',{},aiResultView(ai,b)):h('p',{class:'muted'},tr('Select findings and choose Analyze with AI.'))),
+      analysisView(true),
+      h('section',{class:'panel'},h('h2',{},tr('Query results')),b.queryRuns.length?h('div',{class:'table-wrap'},h('table',{},h('thead',{},h('tr',{},[tr('Target'),tr('Source'),tr('Status'),tr('Started'),tr('Requests')].map(x=>h('th',{},x)))),
+        h('tbody',{},[...b.queryRuns].sort((x,y)=>y.startedAt.localeCompare(x.startedAt)).map(r=>h('tr',{},h('td',{},target(r.targetId)),h('td',{},provider(r.providerId)),h('td',{},pill(statuses[r.status]||r.status,r.status==='SUCCESS'?'ok':'')),h('td',{},date(r.startedAt)),h('td',{},r.requestCount)))))):h('p',{class:'muted'},tr('No queries yet.')),
+        h('h3',{},tr('Findings')),b.findings.length?findingTable(b.findings,true):h('p',{class:'muted'},tr('No findings yet.'))),
+      h('section',{class:'panel'},h('h2',{},tr('Investigation export')),h('p',{class:'muted'},tr("JSON carries the full investigation. CSV exports findings.")),h('div',{class:'actions'},btn(tr("Download JSON"),()=>downloadReport('json')),btn(tr("Download CSV"),()=>downloadReport('csv')))));
+  }
+  queueMicrotask(()=>perform(load));
+  return holder;
 }
 function settings() {
   modal(tr('Settings'),h('div',{},h('p',{},tr('All users share this server workspace.')),

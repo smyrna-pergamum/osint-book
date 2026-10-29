@@ -38,7 +38,7 @@ class AiFoundationTest {
     @Test fun providerDisagreementsOnSingleValuedAttributesAreDetected() {
         fun e(ref: String, provider: String, label: String, value: String)=AiEvidence(ref,"1.1.1.1",provider,label,value,"https://x","2026-01-01T00:00:00Z",userReviewStatus="UNREVIEWED")
         val conflicts=AiEvidencePolicy.conflicts(listOf(e("F1","ipwhois","city","Brisbane"),e("F2","ipapico","city","Sydney"),e("F3","geojs","asn","AS13335"),e("F4","ipwhois","asn","AS13335"),
-            e("F5","dns","A","1.1.1.1"),e("F6","dns2","A","1.0.0.1")))
+            e("F5","dns","A","1.1.1.1"),e("F6","dns2","A","1.0.0.1"),e("F7","rdap","country","AU"),e("F8","ipwhois","country","Australia")))
         assertEquals(listOf("F1 (ipwhois) city=Brisbane vs F2 (ipapico) city=Sydney"),conflicts)
     }
     @Test fun repositoryInputCannotTargetOtherHostsOrPaths() {

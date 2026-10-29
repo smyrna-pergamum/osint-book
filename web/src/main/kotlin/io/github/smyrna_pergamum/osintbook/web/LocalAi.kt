@@ -51,6 +51,7 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
     init {
         Files.createDirectories(dir);Files.createDirectories(analysisDir)
         Files.list(dir).use { s -> s.filter { it.fileName.toString().endsWith(".part") }.toList() }.forEach { Files.deleteIfExists(it) }
+        removeOrphans()
         // A killed server (Task Manager, crash) cannot stop its engine; stop that leftover llama-server before starting a new one.
         runCatching { Files.readString(pidFile).trim().toLong() }.getOrNull()?.let { pid ->
             val runtimes=listOf(cpuRuntime,gpuRuntime).map { it.toAbsolutePath().normalize().toString().lowercase() }
@@ -169,11 +170,27 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
         }
     }
     @Synchronized fun cancelDownload(){downloadCall?.cancel();downloadJob?.cancel()}
+    /** Removes the weights first: if Windows still locks them, the manifest stays so the model remains visible and deletable. */
     @Synchronized fun delete(id:String) {
         require(active?.id!=id && settings?.modelId!=id){"ai_unload_first"}
-        val model=installed().firstOrNull {it.id==id} ?: throw NoSuchElementException()
-        Files.deleteIfExists(idPath(model.id,"json"));Files.deleteIfExists(idPath(model.id,"gguf"))
+        val gguf=idPath(id,"gguf");val manifest=idPath(id,"json")
+        if(!Files.exists(gguf) && !Files.exists(manifest)) throw NoSuchElementException()
+        try { Files.deleteIfExists(gguf) } catch(e:java.io.IOException){ throw IllegalArgumentException("ai_model_file_locked") }
+        listOf("json","part","manifest-part").forEach { Files.deleteIfExists(idPath(id,it)) }
+        if(download["id"]?.jsonPrimitive?.contentOrNull==id) download=buildJsonObject { put("state","idle") }
     }
+    /** Weights without a manifest (interrupted delete or install) and manifests without weights are never shown, so remove them. */
+    private fun removeOrphans() = Files.list(dir).use { s -> s.toList() }.forEach { f ->
+        val name=f.fileName.toString();val stem=name.substringBefore('.')
+        val orphan=when {
+            name.endsWith(".manifest-part") -> true
+            name.endsWith(".gguf") -> !Files.exists(dir.resolve("$stem.json"))
+            name.endsWith(".json") -> !Files.exists(dir.resolve("$stem.gguf"))
+            else -> false
+        }
+        if(orphan) runCatching { Files.deleteIfExists(f) }
+    }
+    fun storageBytes()=Files.list(dir).use { s -> s.toList() }.sumOf { runCatching { Files.size(it) }.getOrDefault(0L) }
 
     // ---- Engine ----
     private fun failed(error:String,detail:String?=null)=buildJsonObject {put("state","failed");put("error",error);detail?.let { put("detail",it) }}
@@ -252,7 +269,7 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
         override suspend fun tokenize(prompt:String)=withContext(Dispatchers.IO){ post("tokenize",buildJsonObject {put("content",prompt);put("add_special",true)}).getValue("tokens").jsonArray.size }
         override suspend fun generate(prompt:String,maxOutputTokens:Int,schema:JsonObject,onToken:(Int)->Unit):String=withContext(Dispatchers.IO){
             require(process?.isAlive==true){"ai_model_not_loaded"}
-            val payload=buildJsonObject {put("prompt",prompt);put("n_predict",maxOutputTokens);put("temperature",0.1);put("json_schema",schema);put("stream",true);put("cache_prompt",false)}
+            val payload=buildJsonObject {put("prompt",prompt);put("n_predict",maxOutputTokens);put("temperature",0.1);put("repeat_penalty",1.1);put("json_schema",schema);put("stream",true);put("cache_prompt",false)}
             val call=generateClient.newCall(Request.Builder().url("http://127.0.0.1:$port/completion").header("Authorization","Bearer $token").post(payload.toString().toRequestBody("application/json".toMediaType())).build())
             // Cancelling the analysis closes the connection; llama-server then stops generating but keeps the model loaded.
             generateCall=call
@@ -276,6 +293,7 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
             } catch(e:java.io.IOException){ ensureActive();throw IllegalArgumentException("ai_engine_error") }
             finally { generateCall=null }
         }
+        override fun cancel() { generateCall?.cancel() }
     }
 
     // ---- Analysis ----
@@ -287,22 +305,53 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
     private fun keepPrevious(investigationId:String,attempt:JsonObject):JsonObject =
         runCatching { json.parseToJsonElement(Files.readString(analysisPath(investigationId))).jsonObject }.getOrNull()?.let { JsonObject(it+("lastAttempt" to attempt)) } ?: attempt
     fun forget(investigationId:String){analyses.remove(investigationId);runCatching { Files.deleteIfExists(analysisPath(investigationId)) }}
-    @Synchronized fun analyze(bundle:InvestigationBundle,ids:List<String>) {
+    /** Engine choice for one analysis: an installed local model (loaded on demand) or a configured cloud provider. */
+    sealed interface Engine { data class Local(val modelId:String?):Engine; data class Cloud(val backend:CloudAi.CloudBackend):Engine }
+    @Volatile private var currentBackend:LocalInferenceBackend?=null
+    /** Any signed-in user may choose any installed model or enabled provider; one analysis runs on the server at a time. */
+    @Synchronized fun analyze(bundle:InvestigationBundle,ids:List<String>,engine:Engine=Engine.Local(null),language:String="en") {
         val invId=bundle.investigation.id;analysisPath(invId)
         // isCompleted, not isActive: a cancelled job may still be closing its engine connection.
         require(analysisJob?.isCompleted!=false){if(analysisInvestigation==invId)"ai_analysis_running" else "ai_analysis_busy"}
-        val model=activeModel() ?: throw IllegalArgumentException("ai_model_not_loaded")
-        val s=settings!!
         val evidence=AiEvidencePolicy.select(bundle,ids)
+        val lang=AiLanguages.of(language)
+        val engineInfo:JsonObject;val contextTokens:Int
+        when(engine) {
+            is Engine.Local -> {
+                val wanted=engine.modelId ?: activeModel()?.id ?: settings?.modelId ?: throw IllegalArgumentException("ai_model_not_loaded")
+                val model=installed().firstOrNull { it.id==wanted } ?: throw IllegalArgumentException("ai_model_not_installed")
+                // Load the chosen model when another one (or none) is active; the analysis waits for it.
+                if(activeModel()?.id!=wanted && !(settings?.modelId==wanted && engine()=="loading")) {
+                    val dedicated=gpus().any { !it.integrated }
+                    activate(EngineSettings(wanted,if(dedicated) "gpu" else "cpu",settings?.takeIf { it.modelId==wanted }?.context ?: 8192))
+                }
+                contextTokens=settings!!.context
+                engineInfo=buildJsonObject {put("type","local");put("repository",model.repository);put("filename",model.filename)
+                    put("quantization",AiCatalog.quantization(model.filename)?.let(::JsonPrimitive) ?: JsonNull);put("backend",settings!!.backend)}
+            }
+            is Engine.Cloud -> {
+                contextTokens=engine.backend.provider.contextTokens
+                engineInfo=buildJsonObject {put("type","cloud");put("repository",engine.backend.provider.name);put("filename",engine.backend.provider.model);put("quantization",JsonNull);put("backend","cloud")}
+            }
+        }
         val startedAt=Time.nowIso();val t0=System.currentTimeMillis()
         fun base(state:String)=buildJsonObject {put("state",state);put("investigationId",invId);put("startedAt",startedAt);put("findingIds",json.encodeToJsonElement(ids))
-            put("model",buildJsonObject {put("repository",model.repository);put("filename",model.filename);put("quantization",AiCatalog.quantization(model.filename)?.let(::JsonPrimitive) ?: JsonNull)});put("backend",s.backend)}
-        analyses[invId]=JsonObject(base("running")+("phase" to JsonPrimitive("preparing")))
+            put("model",engineInfo);put("backend",engineInfo["backend"]!!);put("language",lang)}
+        analyses[invId]=JsonObject(base("running")+("phase" to JsonPrimitive(if(engine is Engine.Local && engine()=="loading") "loading" else "preparing")))
         analysisInvestigation=invId
         analysisJob=scope.launch {
             var inputTokens=0
             try {
-                val output=AiEvaluator(LlamaBackend()).run(bundle,ids,s.context) { phase,n ->
+                val backend:LocalInferenceBackend=when(engine) {
+                    is Engine.Local -> {
+                        while(engine()=="loading") delay(500)
+                        require(engine()=="ready"){engineStatus()["error"]?.jsonPrimitive?.contentOrNull ?: "ai_model_load_failed"}
+                        LlamaBackend()
+                    }
+                    is Engine.Cloud -> engine.backend
+                }
+                currentBackend=backend
+                val output=AiEvaluator(backend).run(bundle,ids,contextTokens,lang) { phase,n ->
                     if(phase=="reading") inputTokens=n
                     analyses[invId]=JsonObject(base("running")+mapOf("phase" to JsonPrimitive(phase),"inputTokens" to JsonPrimitive(inputTokens),"generatedTokens" to JsonPrimitive(if(phase=="writing") n else 0)))
                 }
@@ -313,8 +362,10 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
                 Files.writeString(analysisPath(invId),result.toString());analyses[invId]=result
             }catch(e:CancellationException){analyses[invId]=keepPrevious(invId,base("cancelled"))}
             catch(e:Exception){analyses[invId]=keepPrevious(invId,JsonObject(base("failed")+("error" to JsonPrimitive(e.message?.take(120) ?: "ai_analysis_failed"))))}
+            finally { currentBackend=null }
         }
     }
-    @Synchronized fun cancelAnalysis(investigationId:String){ if(analysisInvestigation==investigationId){analysisJob?.cancel();generateCall?.cancel()} }
-    override fun close(){cancelDownload();analysisJob?.cancel();generateCall?.cancel();loadJob?.cancel();stopProcess();scope.cancel()}
+    private fun engine()=engineStatus()["state"]?.jsonPrimitive?.content
+    @Synchronized fun cancelAnalysis(investigationId:String){ if(analysisInvestigation==investigationId){analysisJob?.cancel();currentBackend?.cancel()} }
+    override fun close(){cancelDownload();analysisJob?.cancel();currentBackend?.cancel();loadJob?.cancel();stopProcess();scope.cancel()}
 }
