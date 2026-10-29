@@ -30,6 +30,7 @@ No account, no cloud, no ads, no tracking. Your investigations stay on your phon
 - [Install](#install)
 - [Build from source](#build-from-source)
 - [Project status](#project-status)
+- [Windows / Web](#windows--web)
 - [Licence](#licence)
 
 ## What it does
@@ -114,6 +115,10 @@ Signing and pinned versions: [BUILDING.md](BUILDING.md).
 Version 0.1.0 is an early release. It is tested with unit tests and on an Android 15 emulator, not yet on many real devices. Bug reports and suggestions are welcome in [Issues](https://github.com/smyrna-pergamum/osint-book/issues).
 
 Key-based sources were tested against their documented responses but not yet with live keys for every provider.
+
+## Windows / Web
+The independent [web module](web/README.md) runs on Windows and is accessible from a browser on the same PC or trusted local network. It reuses the Kotlin providers, validation, analysis and Android-compatible JSON transfer without requiring the Android SDK. It also offers optional offline AI analysis of selected findings with open models from Hugging Face running locally (llama.cpp, CPU or GPU). See its README for launch scripts, packaging, shared-workspace access, AI setup and limitations.
+
 
 ## Licence
 
