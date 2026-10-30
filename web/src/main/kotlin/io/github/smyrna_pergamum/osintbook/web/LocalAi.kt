@@ -315,7 +315,7 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
         require(analysisJob?.isCompleted!=false){if(analysisInvestigation==invId)"ai_analysis_running" else "ai_analysis_busy"}
         val evidence=AiEvidencePolicy.select(bundle,ids)
         val lang=AiLanguages.of(language)
-        val engineInfo:JsonObject;val contextTokens:Int
+        val engineInfo:JsonObject;val contextTokens:Int;val engineRef:String
         when(engine) {
             is Engine.Local -> {
                 val wanted=engine.modelId ?: activeModel()?.id ?: settings?.modelId ?: throw IllegalArgumentException("ai_model_not_loaded")
@@ -325,22 +325,22 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
                     val dedicated=gpus().any { !it.integrated }
                     activate(EngineSettings(wanted,if(dedicated) "gpu" else "cpu",settings?.takeIf { it.modelId==wanted }?.context ?: 8192))
                 }
-                contextTokens=settings!!.context
+                contextTokens=settings!!.context;engineRef="local:$wanted"
                 engineInfo=buildJsonObject {put("type","local");put("repository",model.repository);put("filename",model.filename)
                     put("quantization",AiCatalog.quantization(model.filename)?.let(::JsonPrimitive) ?: JsonNull);put("backend",settings!!.backend)}
             }
             is Engine.Cloud -> {
-                contextTokens=engine.backend.provider.contextTokens
+                contextTokens=engine.backend.provider.contextTokens;engineRef="cloud:${engine.backend.provider.id}"
                 engineInfo=buildJsonObject {put("type","cloud");put("repository",engine.backend.provider.name);put("filename",engine.backend.provider.model);put("quantization",JsonNull);put("backend","cloud")}
             }
         }
         val startedAt=Time.nowIso();val t0=System.currentTimeMillis()
         fun base(state:String)=buildJsonObject {put("state",state);put("investigationId",invId);put("startedAt",startedAt);put("findingIds",json.encodeToJsonElement(ids))
-            put("model",engineInfo);put("backend",engineInfo["backend"]!!);put("language",lang)}
+            put("model",engineInfo);put("backend",engineInfo["backend"]!!);put("language",lang);put("engine",engineRef)}
         analyses[invId]=JsonObject(base("running")+("phase" to JsonPrimitive(if(engine is Engine.Local && engine()=="loading") "loading" else "preparing")))
         analysisInvestigation=invId
         analysisJob=scope.launch {
-            var inputTokens=0
+            var inputTokens=0;var part=0;var phase="preparing";var generated=0
             try {
                 val backend:LocalInferenceBackend=when(engine) {
                     is Engine.Local -> {
@@ -351,9 +351,9 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
                     is Engine.Cloud -> engine.backend
                 }
                 currentBackend=backend
-                val output=AiEvaluator(backend).run(bundle,ids,contextTokens,lang) { phase,n ->
-                    if(phase=="reading") inputTokens=n
-                    analyses[invId]=JsonObject(base("running")+mapOf("phase" to JsonPrimitive(phase),"inputTokens" to JsonPrimitive(inputTokens),"generatedTokens" to JsonPrimitive(if(phase=="writing") n else 0)))
+                val output=AiEvaluator(backend).run(bundle,ids,contextTokens,lang) { p,n ->
+                    when(p) { "part" -> {part=n;generated=0}; "reading" -> {inputTokens=n;phase=p;generated=0}; "writing" -> {phase=p;generated=n}; else -> phase=p }
+                    analyses[invId]=JsonObject(base("running")+mapOf("phase" to JsonPrimitive(phase),"part" to JsonPrimitive(part),"inputTokens" to JsonPrimitive(inputTokens),"generatedTokens" to JsonPrimitive(generated)))
                 }
                 ensureActive()
                 val result=JsonObject(base("complete")+mapOf("output" to json.encodeToJsonElement(output),"fingerprint" to JsonPrimitive(AiEvidencePolicy.fingerprint(evidence)),
@@ -361,7 +361,8 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
                     "promptVersion" to JsonPrimitive(AiEvaluator.PROMPT_VERSION)))
                 Files.writeString(analysisPath(invId),result.toString());analyses[invId]=result
             }catch(e:CancellationException){analyses[invId]=keepPrevious(invId,base("cancelled"))}
-            catch(e:Exception){analyses[invId]=keepPrevious(invId,JsonObject(base("failed")+("error" to JsonPrimitive(e.message?.take(120) ?: "ai_analysis_failed"))))}
+            catch(e:Exception){analyses[invId]=keepPrevious(invId,JsonObject(base("failed")+mapOf("error" to JsonPrimitive(e.message?.take(120) ?: "ai_analysis_failed"),
+                "detail" to ((e as? CloudError)?.detail?.let(::JsonPrimitive) ?: JsonNull))))}
             finally { currentBackend=null }
         }
     }

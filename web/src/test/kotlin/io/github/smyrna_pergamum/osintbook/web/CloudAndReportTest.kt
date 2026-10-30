@@ -43,7 +43,8 @@ class CloudAndReportTest {
             assertFalse(Files.readString(dir.resolve("ai-cloud.json")).contains("secret-key"))
             val b=bundle()
             val out=kotlinx.coroutines.runBlocking { AiEvaluator(cloud.backend(p.id)).run(b,b.findings.map { it.id },32768,"tr") }
-            assertEquals(listOf(b.findings[0].id,b.findings[1].id),out.observations.single().findingIds)
+            // References follow the target/attribute/provider order: F1 = geojs asn, F2 = ipapico city.
+            assertEquals(listOf(b.findings[2].id,b.findings[1].id),out.observations.single().findingIds)
             assertEquals("medium",out.observations.single().confidence)
             assertEquals("staleness",out.risks.single().category)
             server.takeRequest()
@@ -54,6 +55,42 @@ class CloudAndReportTest {
             assertTrue(body["messages"].toString().contains("write every text value in Turkish"))
             cloud.delete(p.id)
             assertFalse(cloud.hasKey(p.id))
+        }
+        store.close()
+    }
+
+    @Test fun largeSelectionsAreSplitIntoPartsAndMerged() = kotlinx.coroutines.runBlocking {
+        val b=bundle();val calls=mutableListOf<Int>()
+        val backend=object : LocalInferenceBackend {
+            var findings=0
+            override suspend fun render(system: String, user: String): String { findings=Regex("\"ref\":\"F\\d+\"").findAll(user).count();return user }
+            // More than one finding does not fit: forces the split down to single findings.
+            override suspend fun tokenize(prompt: String)=if(prompt.startsWith("Part ")) 50 else if(findings>1) 5000 else 100
+            override suspend fun generate(prompt: String, maxOutputTokens: Int, schema: JsonObject, onToken: (Int) -> Unit): String {
+                if(prompt.startsWith("Part ")) return """{"summary":"Merged summary"}"""
+                calls+=findings
+                return """{"summary":"Part","observations":[{"title":"T","text":"Obs ${calls.size}","findingIds":["F1"],"counterpoints":"","confidence":"low"}],"contradictions":[],"missingInformation":["Same"],"verificationSteps":[],"risks":[{"category":"coverage","rating":"${if(calls.size==2) "high" else "low"}","explanation":"x"}]}"""
+            }
+        }
+        val phases=mutableListOf<String>()
+        val out=AiEvaluator(backend).run(b,b.findings.map { it.id },4096,"en") { p,_ -> phases+=p }
+        assertEquals(3,out.parts);assertEquals(listOf(1,1,1),calls)
+        assertEquals("Merged summary",out.summary)
+        assertEquals(3,out.observations.size);assertEquals(listOf("Same"),out.missingInformation)
+        assertEquals("high",out.risks.single().rating)
+        assertTrue("merging" in phases)
+        // Every observation still points at a real finding of this investigation.
+        assertTrue(out.observations.all { o -> o.findingIds.all { id -> b.findings.any { it.id==id } } })
+    }
+
+    @Test fun providerErrorMessagesReachTheUser() {
+        val dir=Files.createTempDirectory("cloud-err");val store=Store(dir.resolve("db.sqlite"))
+        MockWebServer().use { server ->
+            repeat(3) { server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"The model `old-model` has been decommissioned.","type":"invalid_request_error"}}""")) }
+            val cloud=CloudAi(dir,Secrets(store))
+            val p=cloud.add("litellm","Test","http://127.0.0.1:${server.port}/v1","old-model","k",32768)
+            val e=assertFailsWith<CloudError> { cloud.test(p.id) }
+            assertEquals("ai_cloud_http_400",e.message);assertEquals("The model `old-model` has been decommissioned.",e.detail)
         }
         store.close()
     }

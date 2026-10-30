@@ -20,7 +20,8 @@ data class AiObservation(val text: String, val findingIds: List<String>, val tit
 data class AiRisk(val category: String, val rating: String, val explanation: String)
 @Serializable
 data class AiOutput(val summary: String, val observations: List<AiObservation>, val contradictions: List<AiObservation>,
-    val missingInformation: List<String>, val verificationSteps: List<String>, val discardedReferences: Int = 0, val risks: List<AiRisk> = emptyList())
+    val missingInformation: List<String>, val verificationSteps: List<String>, val discardedReferences: Int = 0, val risks: List<AiRisk> = emptyList(),
+    val parts: Int = 1)
 
 /** Languages offered by the interface; the model writes its text in the selected one. */
 object AiLanguages {
@@ -106,6 +107,8 @@ interface LocalInferenceBackend {
     suspend fun generate(prompt: String, maxOutputTokens: Int, schema: JsonObject, onToken: (Int) -> Unit = {}): String
     /** Aborts a running [generate] call; the model stays loaded. */
     fun cancel() {}
+    /** Upper bound for one answer; hosted models allow more. */
+    val maxOutputTokens: Int get() = AiEvaluator.MAX_OUTPUT_TOKENS
 }
 
 /** Builds a bounded, explicitly scoped request. The backend owns tokenization and computation. */
@@ -126,8 +129,35 @@ observations: title (short heading), text (your interpretation), findingIds, cou
 contradictions between findings (text + findingIds, empty if none); missingInformation (what is unknown or would be needed); verificationSteps (concrete manual checks);
 risks: exactly three items with category identity_linkage (risk of wrongly linking entities), staleness (risk the data is outdated) and coverage (risk that sources are incomplete), each with rating low, medium or high and a one-sentence explanation."""
     }
+    /** Analyzes the selection in one request when it fits; otherwise splits it in halves until each part fits the model,
+     *  then merges the parts. Phases: "part" (part number), "reading" (input tokens), "writing" (output tokens), "merging". */
     suspend fun run(bundle: InvestigationBundle, ids: List<String>, contextTokens: Int, language: String = "en", onPhase: (String, Int) -> Unit = { _, _ -> }): AiOutput {
-        require(contextTokens in 512..131072) { "ai_invalid_settings" }
+        require(contextTokens in 512..1_000_000) { "ai_invalid_settings" }
+        AiEvidencePolicy.select(bundle,ids)
+        // Findings about the same target and attribute stay in the same part, so differing values are still compared.
+        val byId=bundle.findings.associateBy { it.id }
+        val ordered=ids.sortedWith(compareBy({ byId[it]?.targetId }, { byId[it]?.label?.lowercase() }, { byId[it]?.providerId }))
+        var part=0
+        suspend fun analyze(selection: List<String>): List<AiOutput> = try {
+            onPhase("part",++part)
+            listOf(single(bundle,selection,contextTokens,language,onPhase))
+        } catch(e: IllegalArgumentException) {
+            if(e.message !in setOf("ai_context_overflow","ai_output_truncated") || selection.size < 2) throw e
+            analyze(selection.take(selection.size/2)) + analyze(selection.drop(selection.size/2))
+        }
+        val outputs=analyze(ordered)
+        if(outputs.size==1) return outputs.single()
+        onPhase("merging",outputs.size)
+        val summary=runCatching { combine(outputs.map { it.summary },contextTokens,language) }.getOrElse { outputs.joinToString(" ") { it.summary } }
+        val rank=mapOf("low" to 0,"medium" to 1,"high" to 2)
+        return AiOutput(summary,outputs.flatMap { it.observations }.distinctBy { it.text.lowercase() }.take(12),
+            outputs.flatMap { it.contradictions }.distinctBy { it.text.lowercase() }.take(12),
+            outputs.flatMap { it.missingInformation }.distinct().take(8),outputs.flatMap { it.verificationSteps }.distinct().take(8),
+            outputs.sumOf { it.discardedReferences },
+            AiEvidencePolicy.riskCategories.mapNotNull { cat -> outputs.flatMap { it.risks }.filter { it.category==cat }.maxByOrNull { rank[it.rating] ?: 0 } },
+            outputs.size)
+    }
+    private suspend fun single(bundle: InvestigationBundle, ids: List<String>, contextTokens: Int, language: String, onPhase: (String, Int) -> Unit): AiOutput {
         val evidence=AiEvidencePolicy.select(bundle,ids)
         // Empty fields are omitted so more findings fit in a small context window.
         val conflicts=AiEvidencePolicy.conflicts(evidence)
@@ -135,10 +165,22 @@ risks: exactly three items with category identity_linkage (risk of wrongly linki
             (if (conflicts.isEmpty()) "" else "\nVALUE DIFFERENCES DETECTED BY THE APPLICATION (explain each under contradictions, citing the references; say if it is likely benign, e.g. approximate IP geolocation):\n"+conflicts.joinToString("\n") { "- $it" })+AiLanguages.reminder(language)
         val prompt=backend.render(instructions(language),user)
         val inputTokens=backend.tokenize(prompt)
-        val budget=minOf(MAX_OUTPUT_TOKENS,contextTokens-inputTokens-16)
+        val budget=minOf(backend.maxOutputTokens,contextTokens-inputTokens-16)
         require(inputTokens >= 0 && budget >= MIN_OUTPUT_TOKENS) { "ai_context_overflow" }
         onPhase("reading",inputTokens)
         return AiEvidencePolicy.validate(backend.generate(prompt,budget,AiEvidencePolicy.SCHEMA) { onPhase("writing",it) },ids)
+    }
+    /** One short request that joins the part summaries; the caller falls back to concatenation if it fails. */
+    private suspend fun combine(summaries: List<String>, contextTokens: Int, language: String): String {
+        val name=AiLanguages.names.getValue(AiLanguages.of(language))
+        val prompt=backend.render("You merge partial OSINT analysis summaries. Respond only with JSON {\"summary\": \"...\"}: one summary of 3-5 sentences in $name. Use only what the partial summaries state.",
+            summaries.mapIndexed { i, x -> "Part ${i+1}: $x" }.joinToString("\n")+AiLanguages.reminder(language))
+        val budget=minOf(1024,contextTokens-backend.tokenize(prompt)-16)
+        require(budget >= 128) { "ai_context_overflow" }
+        val schema=Json.parseToJsonElement("""{"type":"object","properties":{"summary":{"type":"string","maxLength":1500}},"required":["summary"]}""").jsonObject
+        val text=(Json.parseToJsonElement(backend.generate(prompt,budget,schema)).jsonObject["summary"] as? JsonPrimitive)?.contentOrNull?.trim()
+        require(!text.isNullOrEmpty()) { "ai_invalid_output" }
+        return text
     }
 }
 

@@ -90,9 +90,14 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         }
         catch (e: NoSuchElementException) { call.json(obj("error" to "not_found"), HttpStatusCode.NotFound) }
         catch (e: ImportException) { call.json(obj("error" to "import_failed"), HttpStatusCode.BadRequest) }
+        catch (e: CloudError) { call.json(buildJsonObject { put("error",e.message ?: "invalid_request");e.detail?.let { put("detail",it) } }, HttpStatusCode.BadRequest) }
         catch (e: IllegalArgumentException) { call.json(obj("error" to (e.message ?: "invalid_request")), HttpStatusCode.BadRequest) }
         catch (e: kotlinx.coroutines.CancellationException) { throw e }
-        catch (e: Exception) { call.json(obj("error" to "operation_failed"), HttpStatusCode.InternalServerError) }
+        catch (e: Exception) {
+            // Unexpected failures are logged on the server console so they can be diagnosed.
+            call.application.environment.log.error("${call.request.httpMethod.value} $path failed",e)
+            call.json(obj("error" to "operation_failed"), HttpStatusCode.InternalServerError)
+        }
     }
     routing {
         get("/") { call.respondText(resource(if(panel == Panel.ADMIN) "admin.html" else "index.html"), ContentType.Text.Html) }

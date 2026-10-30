@@ -185,7 +185,7 @@ class Reports(private val root: Path, private val providerName: (String) -> Stri
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
 <title>$rid · ${esc(target.s("label"))}</title><style>$CSS</style></head><body>""")
         // Cover
-        sb.append("""<section class="cover"><div class="bar"></div><div class="crumbs">INTELLIGENCE / RESEARCH / REPORTING</div>
+        sb.append("""<section class="cover"><div class="bar"></div><div class="crumbs">${t("INTELLIGENCE / RESEARCH / REPORTING")}</div>
 <div class="badge">${t("PDF REPORT")}</div><div class="ctitle">${t("Open Source")}<br>${t("Intelligence")}</div><div class="caccent">${t("Analysis Report")}</div>
 <p class="csub">${t("A report that separates observations from different sources from AI interpretations and records the evidence chain and verification.")}</p>
 <div class="steps">${listOf("Data collection", "Evidence check", "AI analysis", "Report").mapIndexed { i, x -> "<div><b>${i + 1}</b><span>${t(x)}</span></div>" }.joinToString("<i></i>")}</div>

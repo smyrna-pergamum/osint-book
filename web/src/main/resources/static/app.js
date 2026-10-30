@@ -40,7 +40,7 @@ async function trackedFetch(url, options = {}, label = tr('Requests'), mode = 'j
     if(!response.ok) {
       const result=await response.json().catch(()=>({error:'operation_failed'}));
       if(response.status===401 && !url.endsWith('/login')) login();
-      const error=Error(tr(result.error||'operation_failed'));error.status=response.status;throw error;
+      const error=Error(tr(result.error||'operation_failed')+(result.detail?' — '+result.detail:''));error.status=response.status;throw error;
     }
     return mode==='blob' ? await response.blob() : await response.json();
   } catch(e) {
@@ -231,8 +231,8 @@ function aiResultView(v,b){
  const evidence=ids=>h('div',{class:'actions'},ids.map(id=>{const f=b.findings.find(x=>x.id===id);return f?h('button',{type:'button',class:'ai-evidence',onclick:()=>findingDialog(f)},h('span',{},`${tr('Evidence:')} ${provider(f.providerId)} · ${f.label}`),' ',reviewPill(f)):h('small',{class:'muted'},tr('Deleted finding'))}));
  const list=(title,items,render,emptyText)=>[h('h3',{},title),items.length?h('div',{},items.map(render)):h('p',{class:'muted'},emptyText)];
  const engineName=v.model?.type==='cloud'?`${v.model.repository} · ${v.model.filename}`:`${v.model?.repository||''} ${v.model?.quantization||''} · ${v.backend==='gpu'?'GPU':'CPU'}`;
- return [h('div',{class:'ai-result-meta'},pill(tr('AI interpretation'),'warn'),' ',`${engineName} · ${v.findingIds.length} ${tr('findings')} · ${secs}s · ${date(v.completedAt)}`),
-  v.lastAttempt?h('p',{class:'error-text'},v.lastAttempt.state==='cancelled'?tr('The latest analysis was cancelled. Showing the previous result.'):`${tr('The latest analysis failed:')} ${tr(v.lastAttempt.error)} ${tr('Showing the previous result.')}`):null,
+ return [h('div',{class:'ai-result-meta'},pill(tr('AI interpretation'),'warn'),' ',`${engineName} · ${v.findingIds.length} ${tr('findings')}${out.parts>1?' · '+trf('{count} parts',{count:out.parts}):''} · ${secs}s · ${date(v.completedAt)}`),
+  v.lastAttempt?h('p',{class:'error-text'},v.lastAttempt.state==='cancelled'?tr('The latest analysis was cancelled. Showing the previous result.'):`${tr('The latest analysis failed:')} ${tr(v.lastAttempt.error)}${v.lastAttempt.detail?' ('+v.lastAttempt.detail+')':''} ${tr('Showing the previous result.')}`):null,
   v.evidenceChanged?h('p',{class:'help'},tr('Findings used in this analysis were edited or deleted afterwards. Run the analysis again for current results.')):null,
   h('h3',{},tr('Summary')),h('p',{class:'ai-summary'},out.summary),
   ...list(tr('Evidence-linked observations'),out.observations,o=>h('div',{class:'observation'},o.title?h('strong',{},o.title):null,o.confidence?h('span',{},' ',pill(`${tr('Confidence')}: ${confidenceLabel(o.confidence)}`)):null,h('p',{},o.text),o.counterpoints?h('p',{class:'muted'},`${tr('Alternative explanations:')} ${o.counterpoints}`):null,evidence(o.findingIds)),tr('No observations.')),
@@ -261,7 +261,7 @@ function aiAnalysisView(){
   if([...engineSel.options].some(o=>o.value===before))engineSel.value=before;updateConsent();
  }
  const submitBtn=h('button',{type:'submit',class:'primary'},tr('Analyze with AI')), cancelBtn=btn(tr('Cancel analysis'),async()=>{await api(base('/ai-analysis/cancel'),'POST',{});await aiRefresh()});
- const form=formSubmit(h('form',{},h('div',{class:'ai-engine-pick'},field(tr('AI model'),engineSel),field(tr('Output language'),outLang)),h('p',{class:'muted ai-lang-note'},tr('Small local models (up to about 4B) write best in English. For other output languages, use a larger model or a cloud provider.')),consentBox,
+ const form=formSubmit(h('form',{},h('div',{class:'ai-engine-pick'},field(tr('AI model'),engineSel),field(tr('Output language'),outLang)),h('p',{class:'muted ai-lang-note'},tr('Small local models (up to about 4B) write best in English. For other output languages, use a larger model or a cloud provider.'),' ',tr('If the selection is too large for the model, it is analyzed in parts automatically and the results are merged.')),consentBox,
   h('div',{class:'ai-choices-head'},h('h3',{},tr('Select findings')),h('div',{class:'actions'},btn(tr('Select all'),()=>all(true)),btn(tr('Clear'),()=>all(false)))),choices,h('div',{class:'actions'},submitBtn,cancelBtn)),async()=>{
   const ids=[...form.querySelectorAll('input[name=aiFinding]:checked')].map(x=>x.value);if(!ids.length)throw Error(tr('Select at least one finding.'));
   if(!engineSel.value)throw Error(tr('No AI model available. Ask an administrator to add one.'));
@@ -277,8 +277,8 @@ function aiAnalysisView(){
    h('span',{},pill(tr('No model'),'warn'),' ',tr('No AI model available. Ask an administrator to add one.')));
   running=v.state==='running';submitBtn.disabled=running||!engineSel.value;cancelBtn.hidden=!running;
   if(v.state==='complete')output.replaceChildren(...aiResultView(v,b));
-  else if(v.state==='running')output.replaceChildren(h('div',{class:'ai-progress'},h('strong',{},v.phase==='loading'?tr('Loading the selected model…'):v.phase==='writing'?trf('Writing analysis… {count} tokens',{count:v.generatedTokens}):v.phase==='reading'?trf('Reading {count} findings ({tokens} tokens)…',{count:v.findingIds.length,tokens:v.inputTokens}):tr('Preparing evidence…')),h('progress',{}),h('small',{},v.model?.type==='cloud'?tr('Waiting for the provider to answer.'):tr('Running on the local model. CPU analysis can take a few minutes.'))));
-  else output.replaceChildren(h('p',{class:v.state==='failed'?'error-text':'muted'},v.state==='failed'?`${tr('Analysis failed:')} ${tr(v.error)}`:v.state==='cancelled'?tr('Analysis cancelled.'):tr('Select findings and choose Analyze with AI.')));
+  else if(v.state==='running')output.replaceChildren(h('div',{class:'ai-progress'},h('strong',{},(v.part>1?trf('Part {count}',{count:v.part})+' · ':'')+(v.phase==='merging'?tr('Merging the parts…'):v.phase==='loading'?tr('Loading the selected model…'):v.phase==='writing'?trf('Writing analysis… {count} tokens',{count:v.generatedTokens}):v.phase==='reading'?trf('Reading {count} findings ({tokens} tokens)…',{count:v.findingIds.length,tokens:v.inputTokens}):tr('Preparing evidence…'))),h('progress',{}),h('small',{},v.model?.type==='cloud'?tr('Waiting for the provider to answer.'):tr('Running on the local model. CPU analysis can take a few minutes.'))));
+  else output.replaceChildren(h('p',{class:v.state==='failed'?'error-text':'muted'},v.state==='failed'?`${tr('Analysis failed:')} ${tr(v.error)}${v.detail?' ('+v.detail+')':''}`:v.state==='cancelled'?tr('Analysis cancelled.'):tr('Select findings and choose Analyze with AI.')));
  }
  queueMicrotask(()=>perform(aiRefresh));const timer=setInterval(()=>{if(!output.isConnected){clearInterval(timer);return}perform(aiRefresh)},2000);
  return h('section',{class:'panel'},h('h2',{},tr('Analyze with AI')),engineLine,h('p',{class:'help'},tr('Only the selected findings are analyzed. Local models run on this server and nothing leaves it; cloud providers receive the selected findings. AI output is an interpretation that requires review; original evidence and verification statuses are never changed.')),b.findings.length?form:h('p',{},tr('No findings available. Query sources for a target first.')),output);
@@ -316,19 +316,32 @@ function reportView() {
   const label=(map,v)=>tr(map[v]||v);
   const statusNames={draft:'Draft',in_review:'In review',final:'Final'}, confNames={not_determined:'Not determined',low:'Low',medium:'Medium',high:'High'}, decisionNames={draft:'Draft',approved:'Approved',rejected:'Rejected'};
   const options=(list,names)=>Object.fromEntries(list.map(v=>[v,label(names,v)]));
+  let reportLang=(()=>{try{return localStorage.getItem('osint-report-language')}catch{return null}})()||language;if(!languages[reportLang])reportLang=language;
+  /** Runs the saved analysis again (same findings and engine) so its text matches the report language. */
+  async function rerun(ai){
+    const cloud=ai.model?.type==='cloud';
+    if(cloud&&!confirm(trf('The selected findings will be sent to {name}, an external service, and processed under its terms. Continue only if this is allowed for your investigation.',{name:ai.model.repository})))return;
+    await api(base('/ai-analysis'),'POST',{findingIds:ai.findingIds,engine:ai.engine||'',language:reportLang,confirmCloud:cloud});
+    notice(tr('Analysis started. The report updates when it finishes.'));
+    const t=setInterval(()=>perform(async()=>{const v=await api(base('/ai-analysis'));if(v.state!=='running'){clearInterval(t);if(holder.isConnected)await load();}}),3000);
+  }
   async function load(){
-    const [r,ai]=await Promise.all([api(base(`/report?lang=${language}`)),api(base('/ai-analysis'))]);if(!holder.isConnected)return;
+    const [r,ai]=await Promise.all([api(base(`/report?lang=${reportLang}`)),api(base('/ai-analysis'))]);if(!holder.isConnected)return;
     const s=r.settings, d=r.data, id=d.report.id;
+    const langSel=select('reportLanguage',languages,reportLang);langSel.onchange=()=>{reportLang=langSel.value;try{localStorage.setItem('osint-report-language',reportLang)}catch{};perform(load);};
+    const mismatch=ai.state==='complete'&&(ai.language||'en')!==reportLang;
     const form=formSubmit(h('form',{class:'form-grid report-form'},
       field(tr('Research question'),h('textarea',{name:'researchQuestion',maxlength:2000,placeholder:tr('What should this report answer?')},s.researchQuestion)),
       h('div',{class:'report-row'},field(tr('Report status'),select('status',options(r.options.status,statusNames),s.status)),field(tr('Overall confidence'),select('confidence',options(r.options.confidence,confNames),s.confidence)),field(tr('Review decision'),select('decision',options(r.options.decision,decisionNames),s.decision))),
       h('div',{class:'report-row'},field(tr('Reviewer'),h('input',{name:'verifier',maxlength:120,value:s.verifier})),field(tr('Owner of recommended actions'),h('input',{name:'owner',maxlength:120,value:s.owner,placeholder:tr('Analyst')}))),
       h('div',{class:'actions'},h('button',{type:'submit',class:'primary'},tr('Save report details')))),async data=>{await api(base('/report'),'PUT',Object.fromEntries(data));notice(tr('Saved.'));await load();});
     const file=ext=>`${id}-${b.investigation.title.replace(/[^\p{L}\p{N}]+/gu,'-').slice(0,40)}.${ext}`;
-    const frame=h('iframe',{class:'report-frame',title:tr('Report preview'),src:`/api${base('/report.html')}?lang=${language}&t=${Date.now()}`});
+    const frame=h('iframe',{class:'report-frame',title:tr('Report preview'),src:`/api${base('/report.html')}?lang=${reportLang}&t=${Date.now()}`});
     holder.replaceChildren(
       h('section',{class:'panel'},h('div',{class:'section-line'},h('div',{},h('h2',{},`${tr('Analysis report')} · ${id}`),h('p',{class:'muted'},trf('{sources} sources · {findings} findings · template version 1.0',{sources:d.metrics.sources,findings:d.metrics.findings}))),
-        h('div',{class:'actions'},btn(tr('Download PDF'),()=>downloadFile(base(`/report.pdf?lang=${language}`),file('pdf'),tr('Preparing PDF…')),'primary'),btn(tr('Download HTML'),()=>downloadFile(base(`/report.html?lang=${language}&download=1`),file('html'),tr('Download HTML'))),btn(tr('Download report JSON'),()=>downloadFile(base(`/report.json?lang=${language}`),file('json'),tr('Download report JSON'))))),
+        h('div',{class:'actions'},field(tr('Report language'),langSel),btn(tr('Download PDF'),()=>downloadFile(base(`/report.pdf?lang=${reportLang}`),file('pdf'),tr('Preparing PDF…')),'primary'),btn(tr('Download HTML'),()=>downloadFile(base(`/report.html?lang=${reportLang}&download=1`),file('html'),tr('Download HTML'))),btn(tr('Download report JSON'),()=>downloadFile(base(`/report.json?lang=${reportLang}`),file('json'),tr('Download report JSON'))))),
+        mismatch?h('p',{class:'help'},trf('The AI analysis is in {from}; the report is in {to}. Run the analysis again in {to} so the whole report uses one language.',{from:languages[ai.language||'en'],to:languages[reportLang]}),' ',btn(trf('Run AI analysis in {to}',{to:languages[reportLang]}),()=>rerun(ai),'primary')):null,
+        ai.state==='running'?h('p',{class:'help'},tr('Analysis running…')):null,
         ai.state!=='complete'?h('p',{class:'help'},tr('No AI analysis yet. The report lists findings without interpretation. Run Analyze with AI on the Analysis tab for AI findings, risks and recommendations.'),' ',btn(tr('Go to Analysis'),()=>{state.tab='analysis';render();})):null,
         form),
       h('section',{class:'panel'},h('h2',{},tr('Preview')),frame),

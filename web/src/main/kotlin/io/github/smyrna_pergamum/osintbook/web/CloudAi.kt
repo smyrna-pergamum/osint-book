@@ -51,6 +51,9 @@ object CloudPresets {
     fun get(id: String) = all.firstOrNull { it.id == id } ?: throw IllegalArgumentException("ai_cloud_invalid_preset")
 }
 
+/** An error code plus the provider's own explanation (for example "model decommissioned" or "quota exceeded"), shown to the user. */
+class CloudError(code: String, val detail: String?) : IllegalArgumentException(code)
+
 /** Cloud providers are configured by administrators; API keys stay encrypted in the server key vault and are never returned. */
 class CloudAi(private val root: Path, private val secrets: Secrets,
               private val client: OkHttpClient = OkHttpClient.Builder().connectTimeout(15,TimeUnit.SECONDS).readTimeout(10,TimeUnit.MINUTES).followRedirects(false).build()) {
@@ -113,14 +116,22 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
     private fun request(base: String, path: String, key: String?) = Request.Builder().url("$base/$path").header("User-Agent","OSINT-Book-Web/0.3")
         .apply { if(!key.isNullOrBlank()) header("Authorization","Bearer $key") }
     private fun failure(code: Int)=when(code) { 401,403 -> "ai_cloud_key_rejected"; 404 -> "ai_cloud_model_not_found"; 429 -> "ai_cloud_rate_limited"; else -> "ai_cloud_http_$code" }
+    /** OpenAI-style {"error":{"message":...}}, {"error":"..."} or {"message":...}; falls back to the start of the body. */
+    private fun providerMessage(body: String): String? {
+        val root=runCatching { json.parseToJsonElement(body) }.getOrNull()
+        val err=(root as? JsonObject)?.get("error")
+        val text=((err as? JsonObject)?.get("message") ?: err ?: (root as? JsonObject)?.get("message") ?: (root as? JsonArray)?.firstOrNull()?.let { (it as? JsonObject)?.get("error")?.let { e -> (e as? JsonObject)?.get("message") ?: e } }) as? JsonPrimitive
+        return (text?.contentOrNull ?: body.takeIf { root==null && it.isNotBlank() })?.replace(Regex("\\s+")," ")?.take(300)
+    }
+    private fun fail(code: Int, body: String): Nothing = throw CloudError(failure(code),providerMessage(body))
 
     /** Lists model IDs from GET /models, with either a stored provider key or a key typed in the form. */
     fun models(baseUrl: String, apiKey: String?, providerId: String?): List<String> {
         val base=baseUrl(baseUrl);val key=apiKey?.takeIf { it.isNotBlank() } ?: providerId?.let { secrets.get(secretId(it)) }
         try {
             client.newCall(request(base,"models",key).build()).execute().use { r ->
-                require(r.isSuccessful) { failure(r.code) }
                 val body=r.body!!.byteStream().use { it.readNBytes(4_000_001) }
+                if(!r.isSuccessful) fail(r.code,body.toString(Charsets.UTF_8))
                 require(body.size<=4_000_000) { "ai_hub_response_too_large" }
                 val root=json.parseToJsonElement(body.toString(Charsets.UTF_8))
                 val items=(root as? JsonObject)?.get("data") as? JsonArray ?: (root as? JsonObject)?.get("models") as? JsonArray ?: root as? JsonArray ?: JsonArray(emptyList())
@@ -129,11 +140,10 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
         } catch(e: java.io.IOException) { throw IllegalArgumentException("ai_cloud_unreachable") }
     }
 
-    /** Sends a tiny prompt to confirm the key, model and JSON output work. */
+    /** Sends a short prompt to confirm the key and model answer. Reasoning models need room to think, so the limit is generous. */
     fun test(id: String): String {
         val backend=backend(id)
-        val out=kotlinx.coroutines.runBlocking { backend.generate(backend.render("Respond only with JSON.","Return {\"ok\": true}."),32,JsonObject(emptyMap())) }
-        require(json.parseToJsonElement(out) is JsonObject) { "ai_invalid_output" }
+        kotlinx.coroutines.runBlocking { backend.generate(backend.render("You are a test endpoint. Respond only with JSON.","Return the JSON object {\"ok\": true}."),1024,JsonObject(emptyMap())) }
         return get(id).model
     }
 
@@ -153,6 +163,8 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
         }.toString()
         /** Providers do not share a tokenizer API; about 3 characters per token is a conservative estimate for mixed languages. */
         override suspend fun tokenize(prompt: String)=prompt.length/3+64
+        /** Hosted models have large windows, and reasoning models spend part of the output budget on thinking. */
+        override val maxOutputTokens get()=8192
         override suspend fun generate(prompt: String, maxOutputTokens: Int, schema: JsonObject, onToken: (Int) -> Unit): String=withContext(Dispatchers.IO) {
             val messages=json.parseToJsonElement(prompt)
             // Structured output: JSON schema where supported, then plain JSON mode, then no constraint.
@@ -171,12 +183,13 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
             }
             var code=0;var text=""
             for(format in formats) { val r=send(format);code=r.first;text=r.second;if(code!=400 && code!=422) break }
-            require(code in 200..299) { failure(code) }
-            val choice=runCatching { json.parseToJsonElement(text).jsonObject["choices"]!!.jsonArray.first().jsonObject }.getOrNull() ?: throw IllegalArgumentException("ai_invalid_output")
-            require(choice["finish_reason"]?.jsonPrimitive?.contentOrNull!="length") { "ai_output_truncated" }
-            val content=choice["message"]?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull ?: throw IllegalArgumentException("ai_invalid_output")
+            if(code !in 200..299) fail(code,text)
+            val choice=runCatching { json.parseToJsonElement(text).jsonObject["choices"]!!.jsonArray.first().jsonObject }.getOrNull() ?: throw CloudError("ai_invalid_output",providerMessage(text))
+            val content=choice["message"]?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull.orEmpty()
+            if(choice["finish_reason"]?.jsonPrimitive?.contentOrNull=="length") throw CloudError("ai_output_truncated",content.takeIf { it.isBlank() }?.let { "The model used the whole output limit (often for reasoning) without an answer." })
+            if(content.isBlank()) throw CloudError("ai_invalid_output","The provider returned an empty answer.")
             onToken(content.length/4)
-            extractJson(content)
+            runCatching { extractJson(content) }.getOrElse { throw CloudError("ai_invalid_output",content.take(200)) }
         }
         override fun cancel() { call?.cancel() }
     }

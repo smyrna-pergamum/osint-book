@@ -50,7 +50,7 @@ The admin panel's **Activity log** has a **Refresh** button for new entries.
 - Sources are numbered `K-001`, … (one per provider and source URL, with retrieval time, SHA-256 of the evidence excerpt and verification state). Findings are numbered `B-01`, …: with an AI analysis, each AI observation becomes a finding with its direct observation, AI interpretation, alternative explanations, confidence and linked sources; without one, the findings are listed without interpretation.
 - **Download PDF** prints the report on the server with Microsoft Edge (included in Windows) or Chrome in headless mode. **Download HTML** and **Download report JSON** are also available, plus the full investigation JSON and findings CSV.
 - The page also shows a live preview, the AI analysis, the rule-based analysis and all query results and findings.
-- The report is written in the interface language. Model names are not printed in the report.
+- Choose the **Report language** on the report page (any of the nine languages). All labels, headings and fixed texts follow it. If the saved AI analysis is in another language, the page offers **Run AI analysis in …**, which repeats the analysis with the same findings and model in the report language so the whole report uses one language. Model names are not printed in the report.
 
 ## Local AI analysis
 
@@ -96,6 +96,14 @@ Administrators can add providers from the free AI API list at [github.com/OuterS
 - Internet providers must use HTTPS; plain HTTP is allowed only for this computer or private-network addresses.
 - A cloud analysis sends the selected findings to that provider under its terms. Users must confirm this every time, and each cloud analysis is recorded in the activity log with the provider and model. Local servers do not need this confirmation.
 - Free tiers, limits and model names change; check the provider before relying on it.
+
+### Large selections and small models
+
+The context size (admin panel → AI Models → Installed → **Context**) limits how much evidence a local model can read at once; 8192 tokens is the default. When the selected findings do not fit, or a small model runs out of output space, the selection is automatically split into parts (findings about the same target and attribute stay together), each part is analyzed, and the parts are merged into one result with a combined summary. Progress shows the part being analyzed. To use fewer parts, select fewer findings, activate the model with a larger context (16384 or 32768 if memory allows), or use a larger model or a cloud provider.
+
+### Testing a cloud provider
+
+**Test** sends a short request with room for reasoning models. If it fails, the message includes the provider's own explanation (for example an invalid key, an unknown or retired model name, or an exhausted free quota). Use **Fetch models** to pick a model name the provider currently offers. Unexpected server errors are also written to the server console.
 
 Limitations: small models produce shorter and less precise analysis; if the selected findings do not fit the context size, select fewer findings or reactivate the model with a larger context. CUDA-specific and multi-GPU tuning are not provided; NVIDIA GPUs use the Vulkan build.
 
