@@ -1,131 +1,192 @@
-# OSINT-Book Web 0.2.0 — Windows and local networks
+# OSINT-Book for Windows — user and administrator guide
 
-Run OSINT-Book in Edge or Chrome using a Windows server. The interface is available in English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский and العربية (right-to-left). It follows the browser language until a user picks one with the language selector. All users share the same investigations.
+**Version 0.2.0** · Windows 10/11 (x64) · [Download](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.0) · [Changelog](../CHANGELOG.md)
 
-## Start the Windows package
+The Windows edition of OSINT-Book runs as a small server on a Windows PC. You and your team use it in Edge or Chrome, on the same computer or from other computers on a trusted local network. It shares the sources, rule-based analysis and JSON format of the Android app, and adds a shared workspace, optional AI analysis and template-based reports.
 
-1. Download OSINT-Book-Web-0.2.0-Windows-x64.zip from the [releases](https://github.com/smyrna-pergamum/osint-book/releases) and extract it into a permanent folder. Windows 10 or 11 (x64) is required; Java and llama.cpp are included.
-2. Run Start-Local.bat for this computer, or Start-LAN.bat for other computers on your local network.
-3. On the first start, choose the user and admin ports (defaults 8080 and 8081), then create an administrator username and a password of at least 12 characters in the console. Answer `y` to add additional users and choose whether each is an administrator; answer `n` or press Enter to finish. Accounts persist across restarts.
-4. Open the user panel address shown in the console, for example http://localhost:8080. LAN clients use the server IPv4 address and the chosen user port. Sign in with your username and password.
-5. Stop the server with Ctrl+C. The server computer must remain running for other computers to connect.
+## Contents
+1. [Requirements](#1-requirements)
+2. [Quick start](#2-quick-start)
+3. [Working with investigations](#3-working-with-investigations)
+4. [AI analysis](#4-ai-analysis)
+5. [Reports](#5-reports)
+6. [Administration](#6-administration)
+7. [Languages](#7-languages)
+8. [Security and privacy](#8-security-and-privacy)
+9. [Configuration, backup and upgrade](#9-configuration-backup-and-upgrade)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Build from source](#11-build-from-source)
+12. [Known limitations](#12-known-limitations)
 
-The bundled package includes Java. LAN connections use HTTP: use a trusted private network. If Windows Firewall requests permission, allow only the private network. Do not expose this server directly to the internet.
+## 1. Requirements
 
-## Users and API keys
+- Windows 10 or 11, 64-bit.
+- About 300 MB of disk space for the program, plus space for AI models (0.5–20 GB each, optional).
+- 8 GB of RAM is enough for small CPU models. Larger models need more RAM or a GPU with Vulkan support (AMD, NVIDIA or Intel).
+- Microsoft Edge (included with Windows) or Google Chrome, which the server uses to create PDF reports.
+- Internet access for the OSINT queries and for downloading models. Analysis with a downloaded local model works offline.
 
-Administrators use the separate admin panel to add accounts, change administrator permissions, disable or delete accounts and reset passwords. Deleting an account revokes its sessions and removes pending password reset requests. Shared investigation data and audit logs remain; an administrator cannot delete their own account or the last enabled administrator. The last enabled administrator cannot be disabled. Accounts share investigation data; there is no per-user investigation isolation.
+Java and the llama.cpp engine (CPU and Vulkan builds) are included in the ZIP.
 
-Start the server and open `Open-Server-Management.bat` on that computer, or open the admin panel address displayed in the console (default http://localhost:8081). The admin port binds to 127.0.0.1 and is accessible only from the server computer. Sign in as an administrator to manage accounts, roles, reset requests, API keys and the latest 500 activity log entries. The user panel does not expose admin APIs. Accounts and logs remain on the server.
+## 2. Quick start
 
-Users who cannot sign in can select **Request password reset** on the user login page. The administrator must independently verify the requester and set a new password in the admin panel, then communicate it securely. Existing sessions for that account are revoked. The request does not send an email or automatically reset a password.
+1. Download `OSINT-Book-Web-0.2.0-Windows-x64.zip` from the [release page](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.0). You can compare its SHA-256 with the `.sha256` file published next to it. Then extract the ZIP into a permanent folder such as `C:\OSINT-Book`.
+2. Start the server:
+   - `Start-Local.bat`: only this computer can connect.
+   - `Start-LAN.bat`: other computers on your local network can connect too. The console shows the server's IPv4 addresses. If Windows Firewall asks, allow **private networks only**.
+3. On the first start, the console asks for:
+   - the user-panel port (default 8080) and the admin-panel port (default 8081);
+   - an administrator username and password (at least 12 characters). You can add more users right away, or later in the admin panel.
+4. Open the user panel at http://localhost:8080. Other computers use `http://<server-IP>:8080`.
+5. Open the admin panel at http://localhost:8081, or with `Open-Server-Management.bat`. It works only on the server computer.
+6. To stop the server, press **Ctrl+C** in its console window. Other computers can connect only while the server is running.
 
-To delete a target, open its investigation, choose **Delete target** and confirm. Its query history, findings, evidence, linked notes, tags and relations are permanently deleted. Cancel and wait for active queries before deleting. General investigation notes and unrelated targets remain intact.
+Your data is stored in the `data` folder next to the scripts.
 
-First-start account setup runs only when the server has no accounts. For unattended setup, `OSINT_USERNAME` and `OSINT_PASSWORD` create one administrator without interactive prompts; add further users later in Settings.
+## 3. Working with investigations
 
-The admin panel lets administrators add, replace and delete stored provider keys. Key values are never returned to the browser. Stored keys use AES-GCM encryption; passwords use salted PBKDF2 hashes. Back up the entire data directory, including secrets.key, which is required to decrypt saved API keys. Protect access to this directory.
+- **Investigations.** Create one with **New investigation**, or import an Android or web JSON file with **Import JSON**. **All investigations** lists active and archived investigations; each card has **Open** and **Delete**. Inside an investigation, **Edit** renames, archives or deletes it.
+- **Targets.** Add a domain, URL, IP address, organisation, GitHub repository, package or file hash. The type is detected automatically. Secret-looking URL parameters and user information are removed before anything is saved. **Delete target** removes the target's queries, findings, evidence, notes, tags and relations.
+- **Queries.** **Query sources** shows which services will receive the target. Choose the sources and start. Keyed sources need a key that an administrator has added. Ping is an active check; it sends four packets from the server and needs explicit consent. Cancel buttons stop a single source, one target or every query in the investigation. Findings that already arrived are kept.
+- **Findings.** Each finding has its source link, retrieval time, an evidence excerpt with SHA-256, tags, notes, a favourite flag and a review status (not reviewed, verified or conflicting).
+- **Analysis tab.** It holds the rule-based analysis and timeline, and **Analyze with AI** (see [section 4](#4-ai-analysis)).
+- **Map.** It shows coordinate findings on OpenStreetMap. IP coordinates are an approximate network location, not a person's location.
+- **Notes and relations.** Record context and links between targets and findings. A relation you add is marked as your own inference.
+- **Exports.** Under **Prepare report → Investigation export** you can download the full investigation as JSON (compatible with the Android app) or the findings as CSV.
 
-Environment keys named OSINT_KEY_PROVIDER remain supported. Deleting a stored key does not remove an environment-provided key.
+## 4. AI analysis
 
-## Queries, maps and cancellation
+AI analysis is optional. It interprets the findings you select; it never changes them or their review status. You can run models in two ways:
 
-Ping runs Windows ping on the server, sends four packets, and requires explicit active-query consent. A blocked ping response does not prove a host is offline.
+| | Local model | Cloud or API provider |
+|---|---|---|
+| Where it runs | On this server (llama.cpp, CPU or Vulkan GPU) | On the provider's servers, or on a local Ollama / LM Studio / LiteLLM server |
+| Internet | Only to download the model | Needed (except for local servers) |
+| Data sent out | None | The selected findings, after the user confirms |
+| Cost | Free | Free tiers available; limits vary |
 
-The Map tab displays coordinate findings. Load map contacts OpenStreetMap; IP coordinates indicate an approximate network location, not a person's location. Stop map removes the embedded map.
+### 4.1 Install a local model (admin panel → AI Models)
 
-Cancel buttons stop individual providers, target queries or all investigation queries. Forms can be dismissed and pending browser requests can be aborted. Cancelling a browser request does not undo a save already completed on the server; refresh to check the result. Successful findings remain available after query cancellation.
+- **This server** shows the CPU, the total and available RAM, and any GPUs the Vulkan engine detects. Integrated GPUs are marked because they share system RAM.
+- **Recommended** lists instruction-tuned models that were checked with the bundled engine, with their size, download and like counts from Hugging Face and an estimate of whether each one fits this server. The highlighted model is the best match: Qwen2.5 1.5B for 8 GB of RAM, Qwen3 4B for 12–24 GB, and larger models for servers with a dedicated GPU.
+- **Popular** lists the most downloaded GGUF models on Hugging Face. **Search** looks them up by name, and you can also open a repository directly by `owner/name` or its URL.
+- **Choose a quantization** lists every file of a model with its size and whether it fits. Q4_K_M is a good default; higher numbers are larger and more accurate.
+- **Downloads** show progress, speed and remaining time, and can be cancelled. A file is installed only after its size and SHA-256 match what Hugging Face publishes. Gated repositories, split files and files in subfolders are not supported.
+- **Installed** lets you choose the device (CPU or GPU), the context size and the number of threads, then **Activate**, **Unload** or **Delete** a model. Deleting removes the file from disk. The active model is loaded again automatically when the server restarts.
 
-Research, targets, evidence review, notes, tags, relations, JSON import/export and CSV export are supported. The rule-based analysis is included alongside the optional AI analysis described below.
+As a rough guide for Q4_K_M files: models of 0.5B–1.5B parameters run on 8 GB RAM computers; 4B needs about 3.5 GB of free RAM or a GPU with 4 GB; 8B needs a GPU with 8 GB or 24 GB of RAM; 14B and 32B need dedicated GPUs with 12 GB and 24 GB.
 
-To delete an investigation, use **Delete** on its card under **All investigations**, or **Edit → Delete** inside it. Its targets, findings, evidence, notes, AI analysis and report settings are removed.
+### 4.2 Add a cloud or API provider (admin panel → AI Models → Cloud & API)
 
-The admin panel's **Activity log** has a **Refresh** button for new entries.
+1. Pick a provider from the list. It includes Google AI Studio (Gemini), Groq, Cerebras, OpenRouter, Hugging Face Inference, Mistral, Cohere, Together AI, Fireworks, DeepInfra, SambaNova, Novita, Hyperbolic, AI/ML API and DeepSeek from [free-ai-apis](https://github.com/OuterSpacee/free-ai-apis); local Ollama, LM Studio and LiteLLM servers; and *Other OpenAI-compatible API*. Use **Get API key** to open the provider's key page.
+2. Enter the API key, use **Fetch models** to pick a current model name, and **Save**.
+3. Press **Test**. If the test fails, the message includes the provider's own explanation, for example an invalid key, a retired model or an exhausted quota.
 
-## Prepare report
+The key is stored encrypted on the server and is never shown again. Internet providers must use HTTPS; plain HTTP is allowed only for this computer or for private-network addresses. Providers can be disabled or deleted at any time.
 
-**Prepare report** (next to **Edit** in an investigation) opens the report page. It follows the *OSINT Analysis Report* template and its data schema (`report`, `target`, `scope`, `metrics`, `sources`, `findings`, `quality`, `risks`, `recommendations`, `review`):
+### 4.3 Analyze (user panel → investigation → Analysis)
 
-- Enter the research question, report status, overall confidence, review decision, reviewer and the owner of recommended actions, then **Save report details**. Report numbers (`RPR-0001`, …) are assigned once per investigation.
-- Sources are numbered `K-001`, … (one per provider and source URL, with retrieval time, SHA-256 of the evidence excerpt and verification state). Findings are numbered `B-01`, …: with an AI analysis, each AI observation becomes a finding with its direct observation, AI interpretation, alternative explanations, confidence and linked sources; without one, the findings are listed without interpretation.
-- **Download PDF** prints the report on the server with Microsoft Edge (included in Windows) or Chrome in headless mode. **Download HTML** and **Download report JSON** are also available, plus the full investigation JSON and findings CSV.
-- The page also shows a live preview, the AI analysis, the rule-based analysis and all query results and findings.
-- Choose the **Report language** on the report page (any of the nine languages). All labels, headings and fixed texts follow it. If the saved AI analysis is in another language, the page offers **Run AI analysis in …**, which repeats the analysis with the same findings and model in the report language so the whole report uses one language. Model names are not printed in the report.
+1. Under **Analyze with AI**, choose the **AI model**. Any signed-in user can choose any installed local model or any enabled provider; a local model that is not loaded yet is loaded automatically.
+2. Choose the **Output language**.
+3. Select the findings (up to 100) and press **Analyze with AI**. For a cloud provider, first confirm that the selected findings may be sent to it.
 
-## Local AI analysis
+The result shows:
+- a **summary**;
+- **evidence-linked observations**, each with a title, confidence, alternative explanations and buttons that open the cited findings with their review status;
+- **contradictions** between sources. OSINT-Book itself detects differing values for the same attribute, such as two different cities for one IP address, and asks the model to explain them;
+- **missing information**, **suggested verification** steps and a **risk matrix** (identity linkage, staleness, coverage).
 
-OSINT-Book can interpret selected findings with an open language model that runs on the server itself. Investigation data is never sent to Hugging Face or any other online service. After a model is downloaded, analysis works without internet access.
+Progress is shown while the analysis runs, and you can cancel it without unloading the model. One analysis runs on the server at a time. The latest result of each investigation is saved, and it is marked when the findings it used are edited later.
 
-The package includes two builds of the [llama.cpp](https://github.com/ggml-org/llama.cpp) inference engine (release b11934, SHA-256 pinned in `Build.ps1`): `ai-runtime` for CPUs and `ai-runtime-gpu` (Vulkan) for AMD, NVIDIA and Intel GPUs. No model weights are bundled.
+### 4.4 Large selections and small models
 
-### Choose and download a model (admin panel → AI Models)
+A local model can read only as much text as its **context size** allows (8192 tokens by default). When the selected findings do not fit, or a small model runs out of space for its answer, OSINT-Book splits the selection into parts automatically, keeping findings about the same target and attribute together. It analyzes each part and merges them into one result. To make this faster:
+- select fewer findings;
+- reactivate the model with a larger context (16384 or 32768, if memory allows);
+- use a larger model or a cloud provider.
 
-- **This server** shows CPU threads, total and available RAM, and GPUs detected by the Vulkan engine. Integrated GPUs are marked because they share system RAM.
-- **Recommended** lists instruction-tuned models checked with the bundled engine, with live size, download and like counts from Hugging Face and an estimate of whether each fits this server. The highlighted model is the best match for the hardware: Qwen2.5 1.5B on 8 GB RAM computers, Qwen3 4B on 12–24 GB RAM, larger models on servers with a dedicated GPU.
-- **Popular** lists the most downloaded GGUF text-generation repositories on Hugging Face. **Search** finds repositories by name, or opens a repository by `owner/name` or `https://huggingface.co/owner/name`.
-- **Choose a quantization** shows every GGUF file in a repository with its quantization (for example Q4_K_M), download size and fit for this server. Q4_K_M is a good default.
-- Downloads show real progress, speed and remaining time, and can be cancelled. The file is checked against the size and SHA-256 published by Hugging Face before it is installed; a partial or mismatching file is deleted. Only one download runs at a time. Gated or private repositories, split (`-00001-of-0000N`) files, files in subfolders and vision projector files are not supported.
-- Models are stored in `data/models` with a manifest recording repository, revision, file name, size and SHA-256.
+Small local models (up to about 4B) write best in English. For other languages, use a larger model or a cloud provider.
 
-### Activate, unload or delete (Installed)
+## 5. Reports
 
-Choose the device (CPU, or GPU when one is detected), context size and CPU threads, then **Activate**. The engine starts as a separate process bound to 127.0.0.1 with a random port and key, so it is never reachable from the network. GPU mode offloads as many layers as fit in GPU memory and keeps the rest on the CPU. The active model is loaded again automatically when the server restarts. **Unload** stops the engine; **Delete** removes an unloaded model from disk. If loading fails, the panel shows the reason from the engine log (`data/ai-engine.log`), such as insufficient memory.
+**Prepare report** (next to **Edit**) opens the report page:
 
-Rough guide with Q4_K_M files: 0.5B–1.5B models run on 8 GB RAM computers; 4B needs about 3.5 GB free RAM or a 4 GB GPU; 8B needs a GPU with 8 GB memory or a server with 24 GB+ RAM; 14B and 32B need dedicated GPUs with 12 GB and 24 GB memory. On CPUs, expect roughly 1–5 minutes per analysis depending on model size and the number of findings.
+- **Report details:** research question, report status, overall confidence, review decision, reviewer and the owner of the recommended actions. The report number (`RPR-0001`, …) is assigned once and never changes.
+- **Report language:** any of the nine languages. Every heading, label and fixed text follows it. If the AI analysis is in another language, **Run AI analysis in …** repeats it with the same findings and model so the whole report uses one language.
+- **Downloads:** **PDF** (created on the server with Microsoft Edge or Chrome), **HTML**, and **report JSON** in the template's data schema (`report`, `target`, `scope`, `metrics`, `sources`, `findings`, `quality`, `risks`, `recommendations`, `review`).
+- **Preview, AI analysis, rule-based analysis and all query results** appear on the same page.
 
-### Analyze with AI (user panel → investigation → Analysis)
+The report follows the *OSINT Analysis Report* template. Sources are numbered `K-001`… (one per provider and source URL, with retrieval time, an evidence hash and verification status). Findings are numbered `B-01`…: each one has the direct observation, the AI interpretation, alternative explanations, confidence and links to its sources. Without an AI analysis, the findings are listed without interpretation. Model names are not printed in the report.
 
-Every signed-in user can choose any installed local model or any enabled cloud provider, and the language of the AI output. A local model that is not loaded yet is loaded automatically before the analysis. One analysis runs on the server at a time.
+## 6. Administration
 
-Select up to 100 findings and choose **Analyze with AI**. Only those findings, with their source, retrieval time, verification status and evidence excerpts, are sent to the local model. The result shows:
+The admin panel (http://localhost:8081) opens only on the server computer and only for administrators.
 
-- an English **summary**;
-- **evidence-linked observations**, each with buttons that open the cited findings and show their verification status;
-- **contradictions** between sources (the application also detects differing values for the same attribute, such as two IP geolocation cities, and asks the model to explain them);
-- **missing information** and **suggested verification** steps.
+- **User accounts:** add users, give or remove administrator rights, disable, delete and reset passwords. You cannot delete your own account or the last administrator. All users share the investigations.
+- **Password reset requests:** users can ask for a reset on the login page. Verify the person yourself, set a new password and tell them in a secure way; no e-mail is sent.
+- **API keys:** add, replace or delete keys for the keyed sources. Keys are never shown again after saving.
+- **Activity log:** the latest 500 account, access and change events, including every cloud AI analysis. Use **Refresh** to load new entries.
+- **AI Models:** see [section 4](#4-ai-analysis).
 
-Findings are given to the model as references F1, F2, … and mapped back to the real findings; references the model invents are removed and counted. Generation is constrained to a JSON schema. Progress shows the tokens read and written, and the analysis can be cancelled without unloading the model. One analysis runs at a time on the server.
+## 7. Languages
 
-The original findings, evidence and verification statuses are never changed. The latest result for each investigation is saved in `data/ai-analyses` and marked when the findings it used are later edited or deleted. AI results are interpretations, can be wrong, and are not included in JSON/CSV exports or the Android-compatible format.
+The interface and the reports are available in English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский and العربية (right-to-left). At first the interface follows the browser's language; each user can change it with the language selector. The user panel and the admin panel remember the choice separately.
 
-### Cloud and API providers (admin panel → AI Models → Cloud & API)
+## 8. Security and privacy
 
-Administrators can add providers from the free AI API list at [github.com/OuterSpacee/free-ai-apis](https://github.com/OuterSpacee/free-ai-apis): Google AI Studio (Gemini), Groq, Cerebras, OpenRouter, Hugging Face Inference, Mistral, Cohere, Together AI, Fireworks, DeepInfra, SambaNova, Novita, Hyperbolic, AI/ML API and DeepSeek, local servers (Ollama, LM Studio, LiteLLM), or any other OpenAI-compatible API. Enter the API key and model, use **Fetch models** to list current model names, and **Test** to check the key. Puter is not included because it works only in the browser, and code-completion services are not chat models.
+- **Admin panel:** it listens only on `127.0.0.1`, so other computers cannot reach it.
+- **User panel:** it uses plain HTTP. Use it only on a trusted private network, allow only private networks in Windows Firewall, and never forward its port on your router.
+- **Passwords:** stored as salted PBKDF2 hashes.
+- **API keys:** source and AI provider keys are encrypted with AES-GCM using `data/secrets.key`. They are never sent to the browser, and they never appear in exports or reports.
+- **Queries:** a query sends only the target value to the sources you selected, along with the server's public IP address.
+- **Local AI:** it runs as a separate process reachable only from this computer, with a random port and key. No investigation data leaves the server.
+- **Cloud AI:** it sends only the selected findings, after the user confirms. Each one is recorded in the activity log with the provider and the model.
+- **AI output:** it is an interpretation and can be wrong. The report keeps observations separate from interpretation, and the original evidence is never modified.
 
-- API keys are stored with AES-GCM in the server key vault, never returned to the browser, and removed with the provider.
-- Internet providers must use HTTPS; plain HTTP is allowed only for this computer or private-network addresses.
-- A cloud analysis sends the selected findings to that provider under its terms. Users must confirm this every time, and each cloud analysis is recorded in the activity log with the provider and model. Local servers do not need this confirmation.
-- Free tiers, limits and model names change; check the provider before relying on it.
+See also [PRIVACY.md](../PRIVACY.md).
 
-### Large selections and small models
+## 9. Configuration, backup and upgrade
 
-The context size (admin panel → AI Models → Installed → **Context**) limits how much evidence a local model can read at once; 8192 tokens is the default. When the selected findings do not fit, or a small model runs out of output space, the selection is automatically split into parts (findings about the same target and attribute stay together), each part is analyzed, and the parts are merged into one result with a combined summary. Progress shows the part being analyzed. To use fewer parts, select fewer findings, activate the model with a larger context (16384 or 32768 if memory allows), or use a larger model or a cloud provider.
+**Data folder (`data`).** It holds the database, `secrets.key`, `ports.properties`, `models/` (AI models), `ai-analyses/`, `reports/`, `ai-cloud.json` and `ai-engine.log`.
+- **Backup:** stop the server and copy the whole `data` folder. Always keep `secrets.key` together with the database; without it, saved keys cannot be decrypted.
+- **Upgrade:** stop the server and extract the new version into a new folder. Then copy the old `data` folder into it, or point `OSINT_DATA` to the old folder, and start the new version.
 
-### Testing a cloud provider
+**Environment variables (optional):**
 
-**Test** sends a short request with room for reasoning models. If it fails, the message includes the provider's own explanation (for example an invalid key, an unknown or retired model name, or an exhausted free quota). Use **Fetch models** to pick a model name the provider currently offers. Unexpected server errors are also written to the server console.
+| Variable | Meaning |
+|---|---|
+| `OSINT_DATA` | Path to the data folder |
+| `OSINT_PORT` / `OSINT_ADMIN_PORT` | Ports used on the first start (default 8080 / 8081). They are then saved in `data/ports.properties`; edit that file to change them later. |
+| `OSINT_USERNAME` / `OSINT_PASSWORD` | Create the first administrator without prompts (only when no accounts exist) |
+| `OSINT_KEY_<PROVIDER>` | A source API key supplied from the environment, e.g. `OSINT_KEY_VIRUSTOTAL` |
+| `OSINT_PDF_BROWSER` | Path to another Chromium-based browser for PDF creation |
 
-Limitations: small models produce shorter and less precise analysis; if the selected findings do not fit the context size, select fewer findings or reactivate the model with a larger context. CUDA-specific and multi-GPU tuning are not provided; NVIDIA GPUs use the Vulkan build.
+## 10. Troubleshooting
 
-## Upgrade and backup
+| Problem | What to do |
+|---|---|
+| The server does not start: *port in use* | Choose other ports in `data/ports.properties`, or stop the program that uses them. |
+| Other computers cannot connect | Use `Start-LAN.bat`, allow the private network in Windows Firewall, and use the server's IPv4 address with the user port. |
+| The model does not load | The panel shows the reason from `data/ai-engine.log`. Usually there is not enough RAM: choose a smaller model or quantization, close other programs, or use the GPU. |
+| *The selected findings do not fit* or the analysis is slow | See [4.4](#44-large-selections-and-small-models). |
+| A cloud provider's **Test** fails | Read the provider message shown after the error. Check the key, use **Fetch models** to choose a current model name, or wait for the free quota to reset. |
+| The PDF cannot be created | Install or repair Microsoft Edge, or download the HTML report and print it to PDF. |
+| Unexpected *Operation failed* | The server console shows the full error. |
 
-Stop the old server and back up the entire data directory. Extract the new package separately and copy the data directory into the new osint-book-web folder, or set OSINT_DATA to its existing absolute path. Keep secrets.key with the database. Start the new server. When upgrading from the shared-password version, create the first named administrator; investigation data is retained.
+## 11. Build from source
 
-## Server configuration
-
-- OSINT_DATA: data directory (the launch scripts default to the package's data folder).
-- OSINT_PORT: optional user-port override (default 8080).
-- OSINT_ADMIN_PORT: optional administrator-port override (default 8081, localhost only).
-- On first start the ports are saved in `data/ports.properties`. To change them, stop the server and edit that file, or set the two environment variables before starting. Ports must be distinct and between 1 and 65535. If a port is already in use, choose another one. Environment overrides do not change an existing saved file.
-- OSINT_USERNAME and OSINT_PASSWORD: optional first-account bootstrap values. They do not reset existing accounts.
-- OSINT_KEY_PROVIDER: optional provider API keys, using the provider's uppercase identifier.
-
-## Build from source
-
-Install JDK 21 or later and set JAVA_HOME. From the repository root, run:
+Install JDK 21 or later, then run from the repository root:
 
 ```powershell
 .\web\Build.ps1 -BundleRuntime
 ```
 
-The build downloads the two llama.cpp runtimes once (checksums verified), runs tests and creates web/build/distributions/OSINT-Book-Web-<version>-Windows-x64.zip with a .sha256 file next to it. Android SDK is not needed for this web module. The distribution excludes runtime user data.
+The script downloads the two llama.cpp builds once and checks their SHA-256, runs the tests, adds a trimmed Java runtime and creates `web/build/distributions/OSINT-Book-Web-<version>-Windows-x64.zip` with a `.sha256` file. User data is never included. The Android SDK is not needed. When you start the server from the source tree with `web\scripts\Start-Local.bat`, it stores data in `web\data`.
+
+## 12. Known limitations
+
+- Cloud providers have only been tested against an OpenAI-compatible endpoint, not with live keys for every provider. Free tiers and model names change often.
+- Small local models produce short, less precise analyses, and they are weak in languages other than English.
+- On a CPU, an analysis takes from a few to many minutes, depending on the model and the number of findings.
+- NVIDIA GPUs run through Vulkan; there is no CUDA-specific build or multi-GPU tuning.
+- AI results and report settings are not part of the Android-compatible JSON export.
