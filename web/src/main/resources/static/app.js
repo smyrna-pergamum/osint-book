@@ -88,7 +88,7 @@ function login() {
   });
   const reset=btn(tr('Request password reset'),()=>{const f=formSubmit(h('form',{class:'form-grid'},field(tr('Username'),h('input',{name:'username',required:true,minlength:3,maxlength:40,pattern:'[a-zA-Z0-9_.-]{3,40}'})),h('button',{type:'submit',class:'primary'},tr('Send request'))),async data=>{await api('/password-reset-request','POST',{username:data.get('username')});$('#dialog').close();notice(tr('If the account is eligible, the administrator will see your request.'));});modal(tr('Request password reset'),f);});
   $('#app').replaceChildren(h('div',{class:'login'},
-    h('section',{class:'login-story'},h('div',{},brand(),h('div',{class:'eyebrow'},tr("Open-source intelligence"))),h('div',{},h('h1',{},tr("Collect findings. Discover connections.")),h('p',{},tr("Traceable evidence and a shared investigation workspace."))),h('small',{},'OSINT-Book / Windows & Web · 0.2.0')),
+    h('section',{class:'login-story'},h('div',{},brand(),h('div',{class:'eyebrow'},tr("Open-source intelligence"))),h('div',{},h('h1',{},tr("Collect findings. Discover connections.")),h('p',{},tr("Traceable evidence and a shared investigation workspace."))),h('small',{},'OSINT-Book / Windows & Web · 0.2.1')),
     h('section',{class:'login-form'},languagePicker(),pill(tr("LOCAL WORKSPACE"),'ok'),h('h2',{},tr("Continue your research")),h('p',{class:'muted'},tr("Sign in to your Windows server.")),form,reset,h('small',{},tr('Your server administrator creates your account.')))));
 }
 function brand() { return h('div',{class:'brand'},h('span',{},'O'), 'OSINT-Book'); }

@@ -86,11 +86,54 @@ class CloudAndReportTest {
     @Test fun providerErrorMessagesReachTheUser() {
         val dir=Files.createTempDirectory("cloud-err");val store=Store(dir.resolve("db.sqlite"))
         MockWebServer().use { server ->
-            repeat(3) { server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"The model `old-model` has been decommissioned.","type":"invalid_request_error"}}""")) }
+            repeat(3) { server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"Organization has exceeded its free daily request limit.","type":"invalid_request_error"}}""")) }
             val cloud=CloudAi(dir,Secrets(store))
             val p=cloud.add("litellm","Test","http://127.0.0.1:${server.port}/v1","old-model","k",32768)
             val e=assertFailsWith<CloudError> { cloud.test(p.id) }
-            assertEquals("ai_cloud_http_400",e.message);assertEquals("The model `old-model` has been decommissioned.",e.detail)
+            assertEquals("ai_cloud_http_400",e.message);assertEquals("Organization has exceeded its free daily request limit.",e.detail)
+        }
+        store.close()
+    }
+
+    @Test fun unknownModelErrorListsTheProvidersCurrentChatModels() {
+        val dir=Files.createTempDirectory("cloud-model");val store=Store(dir.resolve("db.sqlite"))
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","code":"model_not_found"}}"""))
+            server.enqueue(MockResponse().setBody("""{"data":[{"id":"openai/gpt-oss-120b"},{"id":"whisper-large-v3"},{"id":"qwen/qwen3.8-27b"}]}"""))
+            val cloud=CloudAi(dir,Secrets(store))
+            val p=cloud.add("litellm","Groq","http://127.0.0.1:${server.port}/v1","llama-3.3-70b-versatile","k",32768)
+            val e=assertFailsWith<CloudError> { cloud.test(p.id) }
+            assertEquals("ai_cloud_model_not_found",e.message)
+            assertTrue(e.detail!!.contains("Available models: openai/gpt-oss-120b, qwen/qwen3.8-27b"),e.detail)
+            assertFalse(e.detail!!.contains("whisper"))
+        }
+        store.close()
+        assertEquals("openai/gpt-oss-120b",CloudPresets.get("groq").model)
+    }
+
+    @Test fun providerSettingsAreFullyEditableAndTestableBeforeSaving() {
+        val dir=Files.createTempDirectory("cloud-flex");val store=Store(dir.resolve("db.sqlite"))
+        MockWebServer().use { server ->
+            val ok=MockResponse().setBody("""{"choices":[{"finish_reason":"stop","message":{"content":"{\"ok\":true}"}}]}""")
+            server.enqueue(ok)
+            val cloud=CloudAi(dir,Secrets(store))
+            val base="http://127.0.0.1:${server.port}/v1"
+            // Azure-style key header plus an extra header, tested before anything is saved.
+            val s=CloudSettings("Azure test",base,"my-deployment",16384,4096,"api-key",mapOf("X-Title" to "OSINT-Book"))
+            assertEquals("my-deployment",cloud.testSettings(s,"secret",null))
+            val r=server.takeRequest()
+            assertEquals("secret",r.getHeader("api-key"));assertNull(r.getHeader("Authorization"));assertEquals("OSINT-Book",r.getHeader("X-Title"))
+            assertTrue(cloud.list().isEmpty())
+            val p=cloud.add("custom",s,"secret")
+            cloud.update(p.id,s.copy(name="Renamed",model="other",authHeader="bearer",headers=emptyMap()),null,null,false)
+            val saved=cloud.get(p.id)
+            assertEquals("Renamed",saved.name);assertEquals("other",saved.model);assertEquals("bearer",saved.authHeader)
+            assertTrue(cloud.hasKey(p.id))
+            cloud.update(p.id,null,null,null,true)
+            assertFalse(cloud.hasKey(p.id))
+            listOf(mapOf("Authorization" to "x"),mapOf("X-A" to "a\nb"),mapOf("bad name" to "x")).forEach { h ->
+                assertFailsWith<IllegalArgumentException> { cloud.update(p.id,s.copy(headers=h),null,null,false) }
+            }
         }
         store.close()
     }

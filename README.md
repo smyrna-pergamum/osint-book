@@ -12,7 +12,7 @@ It comes in two editions that share the same sources, analysis and file format:
 | Data stays | On your phone | On your own server |
 | Analysis | Rule-based | Rule-based + optional AI (local models offline, or cloud APIs) |
 | Reports | PDF, CSV, JSON | Template-based PDF, HTML, JSON report + CSV, JSON |
-| Download | [APK (v0.1.0)](https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0) | [Windows ZIP (web-v0.2.0)](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.0) |
+| Download | [APK (v0.1.0)](https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0) | [Windows ZIP (web-v0.2.1)](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1) |
 
 No account, no ads, no tracking, no telemetry.
 
@@ -136,7 +136,7 @@ Full details: [PRIVACY.md](PRIVACY.md).
 **Android 8.0 or newer.** Download the APK from the [v0.1.0 release](https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0), open it on your phone and allow installing from that source. Before installing, compare the file's SHA-256 and the signing certificate fingerprint with the values in the release notes.
 
 **Windows 10 or 11 (x64).**
-1. Download `OSINT-Book-Web-0.2.0-Windows-x64.zip` from the [web-v0.2.0 release](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.0) and extract it into a permanent folder.
+1. Download `OSINT-Book-Web-0.2.1-Windows-x64.zip` from the [web-v0.2.1 release](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1) and extract it into a permanent folder.
 2. Run `Start-Local.bat` to use it on this computer, or `Start-LAN.bat` to make it available on your local network.
 3. On the first start, choose the ports and create the administrator account.
 4. Open http://localhost:8080.
@@ -152,7 +152,7 @@ No paid service or account is needed. Details and signing: [BUILDING.md](BUILDIN
 
 ## Project status
 
-Both editions are early releases: Android 0.1.0 and Windows 0.2.0.
+Both editions are early releases: Android 0.1.0 and Windows 0.2.1.
 
 - **Android:** tested with unit tests and on an Android 15 emulator, not yet on many real devices.
 - **Windows:** tested with unit tests and end to end on Windows 11, on the CPU and a Vulkan GPU, with real Hugging Face downloads and an OpenAI-compatible endpoint.

@@ -23,13 +23,29 @@ import java.util.concurrent.TimeUnit
 @Serializable data class CloudPreset(val id: String, val name: String, val baseUrl: String, val model: String, val signupUrl: String,
     val keyRequired: Boolean = true, val freeTier: String = "", val local: Boolean = false)
 @Serializable data class CloudProvider(val id: String, val name: String, val preset: String, val baseUrl: String, val model: String,
-    val enabled: Boolean = true, val contextTokens: Int = 32768, val createdAt: String = Time.nowIso())
+    val enabled: Boolean = true, val contextTokens: Int = 32768, val createdAt: String = Time.nowIso(),
+    val maxOutputTokens: Int = 8192, val authHeader: String = "bearer", val headers: Map<String, String> = emptyMap())
+
+/** Editable connection settings. authHeader: how the key is sent ("bearer" = Authorization: Bearer, "api-key", "x-api-key", "none"). */
+@Serializable data class CloudSettings(val name: String = "", val baseUrl: String = "", val model: String = "", val contextTokens: Int = 32768,
+    val maxOutputTokens: Int = 8192, val authHeader: String = "bearer", val headers: Map<String, String> = emptyMap()) {
+    fun validated(): CloudSettings {
+        require(model.isNotBlank() && model.length<=200) { "ai_cloud_model_required" }
+        require(contextTokens in 2048..2_000_000 && maxOutputTokens in 256..131_072) { "ai_invalid_settings" }
+        require(authHeader in setOf("bearer","api-key","x-api-key","none")) { "ai_invalid_settings" }
+        // Extra headers are plain configuration (e.g. OpenRouter's HTTP-Referer); keys belong in the API key field.
+        require(headers.size<=10 && headers.all { (k,v) -> Regex("[A-Za-z0-9-]{1,64}").matches(k) && k.lowercase() !in reservedHeaders &&
+            v.length<=500 && v.none { it=='\r' || it=='\n' } }) { "ai_cloud_invalid_header" }
+        return copy(name=name.trim().take(80),model=model.trim(),baseUrl=CloudAi.baseUrl(baseUrl))
+    }
+    companion object { private val reservedHeaders=setOf("authorization","api-key","x-api-key","host","content-length","content-type","cookie","user-agent","connection","transfer-encoding") }
+}
 
 object CloudPresets {
     /** Model IDs change often; administrators can pick a current one with "Fetch models". */
     val all = listOf(
         CloudPreset("google","Google AI Studio (Gemini)","https://generativelanguage.googleapis.com/v1beta/openai","gemini-2.5-flash","https://aistudio.google.com/apikey",freeTier="Free tier with daily request limits"),
-        CloudPreset("groq","Groq","https://api.groq.com/openai/v1","llama-3.3-70b-versatile","https://console.groq.com/keys",freeTier="Free tier, about 1,000 requests/day"),
+        CloudPreset("groq","Groq","https://api.groq.com/openai/v1","openai/gpt-oss-120b","https://console.groq.com/keys",freeTier="Free tier, about 1,000 requests/day"),
         CloudPreset("cerebras","Cerebras","https://api.cerebras.ai/v1","llama-3.3-70b","https://cloud.cerebras.ai",freeTier="Free tier"),
         CloudPreset("openrouter","OpenRouter","https://openrouter.ai/api/v1","meta-llama/llama-3.3-70b-instruct:free","https://openrouter.ai/keys",freeTier="Models ending in :free cost nothing"),
         CloudPreset("huggingface","Hugging Face Inference","https://router.huggingface.co/v1","meta-llama/Llama-3.1-8B-Instruct","https://huggingface.co/settings/tokens",freeTier="Monthly free credits"),
@@ -93,28 +109,40 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
     fun view(p: CloudProvider)=buildJsonObject {
         put("id",p.id);put("name",p.name);put("preset",p.preset);put("baseUrl",p.baseUrl);put("model",p.model);put("enabled",p.enabled)
         put("contextTokens",p.contextTokens);put("hasKey",hasKey(p.id));put("local",CloudPresets.all.firstOrNull { it.id==p.preset }?.local==true)
+        put("maxOutputTokens",p.maxOutputTokens);put("authHeader",p.authHeader);put("headers",JsonObject(p.headers.mapValues { JsonPrimitive(it.value) }))
     }
 
-    @Synchronized fun add(preset: String, name: String, baseUrl: String, model: String, apiKey: String, contextTokens: Int): CloudProvider {
+    fun add(preset: String, name: String, baseUrl: String, model: String, apiKey: String, contextTokens: Int) =
+        add(preset,CloudSettings(name,baseUrl,model,contextTokens),apiKey)
+    @Synchronized fun add(preset: String, settings: CloudSettings, apiKey: String): CloudProvider {
         val pre=CloudPresets.get(preset)
-        require(model.isNotBlank() && model.length<=200) { "ai_cloud_model_required" }
-        require(!pre.keyRequired || apiKey.isNotBlank()) { "ai_cloud_key_required" }
-        require(contextTokens in 2048..1_000_000) { "ai_invalid_settings" }
-        val p=CloudProvider(UUID.randomUUID().toString(),name.trim().ifBlank { pre.name }.take(80),pre.id,baseUrl(baseUrl.ifBlank { pre.baseUrl }),model.trim(),true,contextTokens)
+        require(!pre.keyRequired || apiKey.isNotBlank() || settings.authHeader=="none") { "ai_cloud_key_required" }
+        val s=settings.copy(baseUrl=settings.baseUrl.ifBlank { pre.baseUrl }).validated()
+        val p=CloudProvider(UUID.randomUUID().toString(),s.name.ifBlank { pre.name },pre.id,s.baseUrl,s.model,true,s.contextTokens,
+            maxOutputTokens=s.maxOutputTokens,authHeader=s.authHeader,headers=s.headers)
         if(apiKey.isNotBlank()) secrets.save(secretId(p.id),apiKey.trim())
         save(list()+p);return p
     }
-    @Synchronized fun update(id: String, model: String?, enabled: Boolean?, apiKey: String?, contextTokens: Int?) {
+    fun update(id: String, model: String?, enabled: Boolean?, apiKey: String?, contextTokens: Int?) {
+        val c=get(id)
+        update(id,if(model!=null || contextTokens!=null) CloudSettings(c.name,c.baseUrl,model ?: c.model,contextTokens ?: c.contextTokens,c.maxOutputTokens,c.authHeader,c.headers) else null,enabled,apiKey,false)
+    }
+    /** Every setting of a saved provider can change; an empty key keeps the stored one, clearKey removes it. */
+    @Synchronized fun update(id: String, settings: CloudSettings?, enabled: Boolean?, apiKey: String?, clearKey: Boolean) {
         val current=get(id)
-        model?.let { require(it.isNotBlank() && it.length<=200) { "ai_cloud_model_required" } }
-        contextTokens?.let { require(it in 2048..1_000_000) { "ai_invalid_settings" } }
+        val s=settings?.validated()
+        if(clearKey) secrets.save(secretId(id),null)
         if(!apiKey.isNullOrBlank()) secrets.save(secretId(id),apiKey.trim())
-        save(list().map { if(it.id!=id) it else current.copy(model=model?.trim() ?: it.model,enabled=enabled ?: it.enabled,contextTokens=contextTokens ?: it.contextTokens) })
+        save(list().map { if(it.id!=id) it else current.copy(enabled=enabled ?: it.enabled).let { p -> if(s==null) p else p.copy(name=s.name.ifBlank { p.name },baseUrl=s.baseUrl,
+            model=s.model,contextTokens=s.contextTokens,maxOutputTokens=s.maxOutputTokens,authHeader=s.authHeader,headers=s.headers) } })
     }
     @Synchronized fun delete(id: String) { get(id);secrets.save(secretId(id),null);save(list().filterNot { it.id==id }) }
 
-    private fun request(base: String, path: String, key: String?) = Request.Builder().url("$base/$path").header("User-Agent","OSINT-Book-Web/0.2.0")
-        .apply { if(!key.isNullOrBlank()) header("Authorization","Bearer $key") }
+    private fun request(base: String, path: String, key: String?, auth: String="bearer", extra: Map<String,String> = emptyMap()) =
+        Request.Builder().url("$base/$path").header("User-Agent","OSINT-Book-Web/0.2.1").apply {
+            if(!key.isNullOrBlank()) when(auth) { "bearer" -> header("Authorization","Bearer $key"); "api-key" -> header("api-key",key); "x-api-key" -> header("x-api-key",key) }
+            extra.forEach { (k,v) -> header(k,v) }
+        }
     private fun failure(code: Int)=when(code) { 401,403 -> "ai_cloud_key_rejected"; 404 -> "ai_cloud_model_not_found"; 429 -> "ai_cloud_rate_limited"; else -> "ai_cloud_http_$code" }
     /** OpenAI-style {"error":{"message":...}}, {"error":"..."} or {"message":...}; falls back to the start of the body. */
     private fun providerMessage(body: String): String? {
@@ -126,10 +154,12 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
     private fun fail(code: Int, body: String): Nothing = throw CloudError(failure(code),providerMessage(body))
 
     /** Lists model IDs from GET /models, with either a stored provider key or a key typed in the form. */
-    fun models(baseUrl: String, apiKey: String?, providerId: String?): List<String> {
+    fun models(baseUrl: String, apiKey: String?, providerId: String?, auth: String?=null, extra: Map<String,String>?=null): List<String> {
         val base=baseUrl(baseUrl);val key=apiKey?.takeIf { it.isNotBlank() } ?: providerId?.let { secrets.get(secretId(it)) }
+        val saved=providerId?.let { id -> list().firstOrNull { it.id==id } }
+        val a=auth ?: saved?.authHeader ?: "bearer";val h=extra ?: saved?.headers ?: emptyMap()
         try {
-            client.newCall(request(base,"models",key).build()).execute().use { r ->
+            client.newCall(request(base,"models",key,a,h).build()).execute().use { r ->
                 val body=r.body!!.byteStream().use { it.readNBytes(4_000_001) }
                 if(!r.isSuccessful) fail(r.code,body.toString(Charsets.UTF_8))
                 require(body.size<=4_000_000) { "ai_hub_response_too_large" }
@@ -140,11 +170,22 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
         } catch(e: java.io.IOException) { throw IllegalArgumentException("ai_cloud_unreachable") }
     }
 
+    /** Chat models only: speech, embedding, image and guard models cannot write an analysis. */
+    private fun suggestions(p: CloudProvider, key: String?): String? = runCatching { models(p.baseUrl,key,null,p.authHeader,p.headers) }.getOrNull()
+        ?.filterNot { Regex("(?i)whisper|tts|embed|guard|orpheus|audio|image|vision|moderation|rerank").containsMatchIn(it) }
+        ?.take(10)?.takeIf { it.isNotEmpty() }?.joinToString(", ",prefix="Available models: ")
+
     /** Sends a short prompt to confirm the key and model answer. Reasoning models need room to think, so the limit is generous. */
-    fun test(id: String): String {
-        val backend=backend(id)
-        kotlinx.coroutines.runBlocking { backend.generate(backend.render("You are a test endpoint. Respond only with JSON.","Return the JSON object {\"ok\": true}."),1024,JsonObject(emptyMap())) }
-        return get(id).model
+    fun test(id: String): String { probe(backend(id));return get(id).model }
+    /** Tests settings typed in the form before they are saved; an empty key falls back to the saved provider's key. */
+    fun testSettings(settings: CloudSettings, apiKey: String?, providerId: String?): String {
+        val s=settings.validated()
+        val key=apiKey?.takeIf { it.isNotBlank() } ?: providerId?.let { secrets.get(secretId(it)) }
+        probe(CloudBackend(CloudProvider("test",s.name,"custom",s.baseUrl,s.model,true,s.contextTokens,maxOutputTokens=s.maxOutputTokens,authHeader=s.authHeader,headers=s.headers),key))
+        return s.model
+    }
+    private fun probe(backend: CloudBackend) = kotlinx.coroutines.runBlocking {
+        backend.generate(backend.render("You are a test endpoint. Respond only with JSON.","Return the JSON object {\"ok\": true}."),1024,JsonObject(emptyMap()))
     }
 
     fun backend(id: String): CloudBackend {
@@ -164,7 +205,7 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
         /** Providers do not share a tokenizer API; about 3 characters per token is a conservative estimate for mixed languages. */
         override suspend fun tokenize(prompt: String)=prompt.length/3+64
         /** Hosted models have large windows, and reasoning models spend part of the output budget on thinking. */
-        override val maxOutputTokens get()=8192
+        override val maxOutputTokens get()=provider.maxOutputTokens
         override suspend fun generate(prompt: String, maxOutputTokens: Int, schema: JsonObject, onToken: (Int) -> Unit): String=withContext(Dispatchers.IO) {
             val messages=json.parseToJsonElement(prompt)
             // Structured output: JSON schema where supported, then plain JSON mode, then no constraint.
@@ -176,14 +217,20 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
                     put("model",provider.model);put("messages",messages);put("temperature",0.1);put("max_tokens",maxOutputTokens)
                     format?.let { put("response_format",it) }
                 }.toString().toRequestBody("application/json".toMediaType())
-                val c=client.newCall(request(provider.baseUrl,"chat/completions",key).post(body).build());call=c
+                val c=client.newCall(request(provider.baseUrl,"chat/completions",key,provider.authHeader,provider.headers).post(body).build());call=c
                 try { c.execute().use { r -> return r.code to (r.body?.byteStream()?.use { it.readNBytes(8_000_000) }?.toString(Charsets.UTF_8).orEmpty()) } }
                 catch(e: java.io.IOException) { ensureActive();throw IllegalArgumentException("ai_cloud_unreachable") }
                 finally { call=null }
             }
             var code=0;var text=""
             for(format in formats) { val r=send(format);code=r.first;text=r.second;if(code!=400 && code!=422) break }
-            if(code !in 200..299) fail(code,text)
+            if(code !in 200..299) {
+                // A retired or unavailable model name: list what the provider offers now, so the fix is one click away.
+                val msg=providerMessage(text)
+                if(code==404 || msg?.contains(Regex("(?i)does not exist|decommission|model_not_found|unknown model|model not found"))==true)
+                    throw CloudError("ai_cloud_model_not_found",listOfNotNull(msg,suggestions(provider,key)).joinToString(" "))
+                fail(code,text)
+            }
             val choice=runCatching { json.parseToJsonElement(text).jsonObject["choices"]!!.jsonArray.first().jsonObject }.getOrNull() ?: throw CloudError("ai_invalid_output",providerMessage(text))
             val content=choice["message"]?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull.orEmpty()
             if(choice["finish_reason"]?.jsonPrimitive?.contentOrNull=="length") throw CloudError("ai_output_truncated",content.takeIf { it.isBlank() }?.let { "The model used the whole output limit (often for reasoning) without an answer." })

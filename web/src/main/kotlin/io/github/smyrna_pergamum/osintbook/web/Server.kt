@@ -192,21 +192,32 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         get("/api/admin/ai/cloud") { val c=cloudAi();call.json(buildJsonObject {
             put("providers",JsonArray(c.list().map(c::view)));put("presets",wire.encodeToJsonElement(CloudPresets.all))
         }) }
+        /** Connection settings sent by the provider form; headers arrive as {"Name":"value"}. */
+        fun JsonObject.cloudSettings()=CloudSettings(text("name",80),text("baseUrl",300),text("model",200),
+            text("contextTokens",8).toIntOrNull() ?: 32768,text("maxOutputTokens",8).toIntOrNull() ?: 8192,text("authHeader",20).ifBlank { "bearer" },
+            (this["headers"] as? JsonObject)?.mapValues { (it.value as? JsonPrimitive)?.contentOrNull.orEmpty() }.orEmpty())
         post("/api/admin/ai/cloud") {
             val input=call.input()
-            val p=cloudAi().add(input.text("preset",40),input.text("name",80),input.text("baseUrl",300),input.text("model",200),input.text("apiKey",4096),input.text("contextTokens",8).toIntOrNull() ?: 32768)
+            val p=cloudAi().add(input.text("preset",40),input.cloudSettings(),input.text("apiKey",4096))
             call.json(cloudAi().view(p))
         }
         patch("/api/admin/ai/cloud/{id}") {
             val input=call.input()
-            cloudAi().update(call.parameters["id"]!!,input.text("model",200).takeIf { "model" in input },if("enabled" in input) input.flag("enabled") else null,
-                input.text("apiKey",4096).takeIf { it.isNotBlank() },input.text("contextTokens",8).toIntOrNull())
+            cloudAi().update(call.parameters["id"]!!,if("model" in input) input.cloudSettings() else null,if("enabled" in input) input.flag("enabled") else null,
+                input.text("apiKey",4096).takeIf { it.isNotBlank() },input.flag("clearKey"))
             call.json(obj("status" to "ok"))
         }
         delete("/api/admin/ai/cloud/{id}") { cloudAi().delete(call.parameters["id"]!!);call.json(obj("status" to "ok")) }
         post("/api/admin/ai/cloud/models") {
             val input=call.input()
-            call.json(JsonArray(withContext(Dispatchers.IO) { cloudAi().models(input.text("baseUrl",300),input.text("apiKey",4096),input.text("id",64).ifBlank { null }) }.map(::JsonPrimitive)))
+            val headers=(input["headers"] as? JsonObject)?.mapValues { (it.value as? JsonPrimitive)?.contentOrNull.orEmpty() }
+            call.json(JsonArray(withContext(Dispatchers.IO) { cloudAi().models(input.text("baseUrl",300),input.text("apiKey",4096),input.text("id",64).ifBlank { null },
+                input.text("authHeader",20).ifBlank { null },headers) }.map(::JsonPrimitive)))
+        }
+        post("/api/admin/ai/cloud/test-settings") {
+            val input=call.input()
+            val model=withContext(Dispatchers.IO) { cloudAi().testSettings(input.cloudSettings(),input.text("apiKey",4096),input.text("id",64).ifBlank { null }) }
+            call.json(obj("status" to "ok","model" to model))
         }
         post("/api/admin/ai/cloud/{id}/test") { val model=withContext(Dispatchers.IO) { cloudAi().test(call.parameters["id"]!!) };call.json(obj("status" to "ok","model" to model)) }
         get("/api/ai/engines") {
@@ -425,7 +436,7 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
             val b = store.get(call.parameters["id"]!!) ?: throw NoSuchElementException()
             val format = call.parameters["format"]!!; require(format in setOf("json","csv"))
             call.response.header("Content-Disposition", "attachment; filename=\"osint-book-${b.investigation.id}.$format\"")
-            if (format == "json") call.respondText(JsonTransfer.encode(b.copy(exportedAt = Time.nowIso(), appVersion = "0.2.0-web")),ContentType.Application.Json)
+            if (format == "json") call.respondText(JsonTransfer.encode(b.copy(exportedAt = Time.nowIso(), appVersion = "0.2.1-web")),ContentType.Application.Json)
             else {
                 val rows = b.findings.map { f -> mapOf(
                     Csv.Column.PROVIDER to f.providerId, Csv.Column.TARGET to (b.targets.firstOrNull { it.id == f.targetId }?.displayValue ?: ""),
