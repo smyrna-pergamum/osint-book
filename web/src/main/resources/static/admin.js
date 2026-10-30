@@ -128,23 +128,71 @@ function cloudView(){
      btn('Edit',()=>cloudDialog(c.presets.find(x=>x.id===p.preset)||c.presets.at(-1),p)),
      btn(p.enabled?'Disable':'Enable',async()=>{await api(`/admin/ai/cloud/${p.id}`,'PATCH',{enabled:!p.enabled});await load()}),
      btn('Delete',async()=>{if(!confirm(trf('Delete {name}? Its stored API key is removed.',{name:p.name})))return;await api(`/admin/ai/cloud/${p.id}`,'DELETE');await load()},'danger')))):[h('p',{class:'muted'},tr('No providers yet. Add one from the list below.'))]),
-   h('h3',{},tr('Add a free AI API')),h('p',{class:'muted'},tr('From the free-ai-apis list (github.com/OuterSpacee/free-ai-apis). All use the OpenAI-compatible chat API. Free tiers and model names change; check the provider before use.')),
+   h('div',{class:'section-line'},h('h3',{},tr('Add a free AI API')),btn('+ Custom OpenAI-compatible API',()=>cloudDialog(c.presets.find(x=>x.id==='custom')),'primary')),h('p',{class:'muted'},tr('From the free-ai-apis list (github.com/OuterSpacee/free-ai-apis). All use the OpenAI-compatible chat API. Free tiers and model names change; check the provider before use.')),
    h('div',{class:'cloud-presets'},c.presets.map(pr=>h('div',{class:'cloud-preset'},h('strong',{},pr.name),h('small',{},tr(pr.freeTier)||'—'),pr.local?pill(tr('Local server'),'ok'):null,h('div',{class:'actions'},btn('Add',()=>cloudDialog(pr)),pr.signupUrl?h('a',{href:pr.signupUrl,target:'_blank',rel:'noopener noreferrer'},tr('Get API key ↗')):null)))))}
+ /** Provider form: every connection setting is editable, models come from the provider, and the connection can be tested before saving. */
  function cloudDialog(pr,existing){
-  const models=h('datalist',{id:'cloud-models'});
-  const f=submit(h('form',{class:'form-grid'},
-   field('Name',input('name','text',{maxlength:80,value:existing?.name||pr.name,disabled:!!existing})),
-   field('API base URL',input('baseUrl','url',{required:true,maxlength:300,value:existing?.baseUrl||pr.baseUrl,disabled:!!existing})),
-   field(existing?'New API key (leave empty to keep the current key)':pr.keyRequired?'API key':'API key (optional)',input('apiKey','password',{maxlength:4096,autocomplete:'off',required:!existing&&pr.keyRequired})),
-   field('Model',input('model','text',{required:true,maxlength:200,value:existing?.model||pr.model,list:'cloud-models'})),models,
-   field('Context window (tokens)',input('contextTokens','number',{min:2048,max:1000000,value:existing?.contextTokens||32768})),
-   h('div',{class:'actions'},btn('Fetch models',async()=>{const fd=new FormData(f);const list=await api('/admin/ai/cloud/models','POST',{baseUrl:fd.get('baseUrl')||existing?.baseUrl,apiKey:fd.get('apiKey')||'',id:existing?.id||''});models.replaceChildren(...list.map(m=>h('option',{value:m})));notice(trf('{count} models found.',{count:list.length}))}),
-    h('button',{type:'submit',class:'primary'},tr('Save'))),
+  const e=existing||{};
+  const keyInput=input('apiKey','password',{maxlength:4096,autocomplete:'off',placeholder:existing?(e.hasKey?tr('Saved key is kept if left empty'):tr('No key saved')):''});
+  const showKey=h('button',{type:'button',class:'ghost',onclick:()=>{keyInput.type=keyInput.type==='password'?'text':'password';showKey.textContent=tr(keyInput.type==='password'?'Show':'Hide')}},tr('Show'));
+  const clearKey=existing&&e.hasKey?h('label',{class:'admin-check'},input('clearKey','checkbox'),h('span',{},tr('Remove the saved key'))):null;
+  const modelInput=input('model','text',{required:true,maxlength:200,value:e.model||pr.model,list:'cloud-models',placeholder:'openai/gpt-oss-120b'});
+  const datalist=h('datalist',{id:'cloud-models'});
+  const modelList=h('select',{size:6,class:'cloud-model-list',hidden:true,'aria-label':tr('Models offered by the provider'),onchange:()=>{modelInput.value=modelList.value}});
+  const allModels=h('input',{type:'checkbox',onchange:()=>showModels()});
+  let fetched=[];
+  const auth=h('select',{name:'authHeader'},[['bearer','Authorization: Bearer <key>'],['api-key','api-key: <key>'],['x-api-key','x-api-key: <key>'],['none',tr('No authentication')]].map(([v,l])=>h('option',{value:v},l)));
+  auth.value=e.authHeader||(pr.keyRequired||!pr.local?'bearer':'none');
+  const headers=h('textarea',{name:'headers',rows:3,maxlength:5000,placeholder:'HTTP-Referer: http://localhost\nX-Title: OSINT-Book'},Object.entries(e.headers||{}).map(([k,v])=>`${k}: ${v}`).join('\n'));
+  const result=h('div',{class:'cloud-result','aria-live':'polite'});
+  const chatOnly=m=>!/whisper|tts|embed|guard|orpheus|audio|image|vision|moderation|rerank/i.test(m);
+  function showModels(){
+   const list=allModels.checked?fetched:fetched.filter(chatOnly);
+   modelList.replaceChildren(...list.map(m=>h('option',{value:m},m)));modelList.value=modelInput.value;datalist.replaceChildren(...list.map(m=>h('option',{value:m})));
+   modelList.hidden=!list.length;
+  }
+  function parseHeaders(text){
+   const out={};
+   for(const line of String(text||'').split('\n').map(x=>x.trim()).filter(Boolean)){const i=line.indexOf(':');if(i<1)throw Error(tr('Write one header per line as Name: value.'));out[line.slice(0,i).trim()]=line.slice(i+1).trim();}
+   return out;
+  }
+  const f=submit(h('form',{class:'form-grid cloud-form'},
+   h('div',{class:'report-row'},field('Name',input('name','text',{maxlength:80,value:e.name||pr.name})),field('API base URL',input('baseUrl','url',{required:true,maxlength:300,value:e.baseUrl||pr.baseUrl}))),
+   h('small',{class:'muted'},tr('Any OpenAI-compatible endpoint, for example https://api.groq.com/openai/v1. HTTPS is required except for this computer or your local network.')),
+   h('label',{},h('span',{},tr(existing?'API key':pr.keyRequired?'API key':'API key (optional)')),h('div',{class:'cloud-key'},keyInput,showKey)),clearKey,
+   field('Model',modelInput),datalist,modelList,h('label',{class:'admin-check'},allModels,h('span',{},tr('Show all models, including speech and embedding models'))),
+   h('details',{class:'cloud-advanced',...(existing&&(e.authHeader!=='bearer'||Object.keys(e.headers||{}).length)?{open:''}:{})},h('summary',{},tr('Advanced settings')),
+    h('div',{class:'form-grid'},field('Authentication',auth),
+     h('label',{},h('span',{},tr('Extra HTTP headers (one per line, Name: value)')),headers),h('small',{class:'muted'},tr('Do not put secrets here; use the API key field and choose how it is sent.')),
+     h('div',{class:'report-row'},field('Context window (tokens)',input('contextTokens','number',{min:2048,max:2000000,value:e.contextTokens||32768})),
+      field('Max output tokens',input('maxOutputTokens','number',{min:256,max:131072,value:e.maxOutputTokens||8192}))))),
+   result,
+   h('div',{class:'actions'},btn('Fetch models',()=>fetchModels(false)),btn('Test connection',()=>testConnection()),h('button',{type:'submit',class:'primary'},tr('Save'))),
    pr.signupUrl?h('p',{},h('a',{href:pr.signupUrl,target:'_blank',rel:'noopener noreferrer'},tr('Get API key ↗'))):null),async d=>{
-    if(existing)await api(`/admin/ai/cloud/${existing.id}`,'PATCH',{model:d.get('model'),apiKey:d.get('apiKey'),contextTokens:d.get('contextTokens')});
-    else await api('/admin/ai/cloud','POST',{preset:pr.id,name:d.get('name'),baseUrl:d.get('baseUrl'),model:d.get('model'),apiKey:d.get('apiKey'),contextTokens:d.get('contextTokens')});
+    const body={...settings(),apiKey:d.get('apiKey')||''};
+    if(existing)await api(`/admin/ai/cloud/${e.id}`,'PATCH',{...body,clearKey:d.has('clearKey')});
+    else await api('/admin/ai/cloud','POST',{...body,preset:pr.id});
     $('#dialog').close();await load();notice('Saved.')});
-  modal(existing?existing.name:pr.name,f)}
+  const settings=()=>{const fd=new FormData(f);return {name:fd.get('name'),baseUrl:fd.get('baseUrl'),model:fd.get('model'),contextTokens:fd.get('contextTokens'),maxOutputTokens:fd.get('maxOutputTokens'),authHeader:fd.get('authHeader'),headers:parseHeaders(fd.get('headers'))}};
+  /** Lists the provider's current models; a model name the provider no longer offers is replaced by a suitable one. */
+  async function fetchModels(quiet){
+   const s=settings();
+   fetched=await api('/admin/ai/cloud/models','POST',{baseUrl:s.baseUrl,apiKey:keyInput.value||'',id:e.id||'',authHeader:s.authHeader,headers:s.headers});
+   const chat=fetched.filter(chatOnly);showModels();
+   if(chat.length&&!fetched.includes(modelInput.value)){
+    const pick=[/gpt-oss-120b/i,/qwen3/i,/llama-3\.3/i,/gemini-2\.5-flash$/i,/mistral-small/i,/deepseek-chat/i,/llama/i].map(r=>chat.find(m=>r.test(m))).find(Boolean)||chat[0];
+    notice(trf('{old} is not offered by this provider. {new} was selected; save to keep it.',{old:modelInput.value||'—',new:pick}));modelInput.value=pick;showModels();
+   } else if(!quiet) notice(trf('{count} models found.',{count:chat.length}));
+  }
+  async function testConnection(){
+   result.replaceChildren(h('p',{class:'muted'},tr('Testing…')));
+   try{const r=await api('/admin/ai/cloud/test-settings','POST',{...settings(),apiKey:keyInput.value||'',id:e.id||''});result.replaceChildren(h('p',{class:'cloud-ok'},pill(tr('OK'),'ok'),' ',trf('The provider answered with model {model}.',{model:r.model})));}
+   catch(err){result.replaceChildren(h('p',{class:'error-text'},err.message));}
+  }
+  keyInput.addEventListener('change',()=>{if(keyInput.value)perform(()=>fetchModels(true))});
+  modal(existing?e.name:pr.name,f);
+  // Keyless local servers and saved providers can be checked right away.
+  if(existing||!pr.keyRequired)fetchModels(true).catch(()=>{});}
  queueMicrotask(()=>perform(load));
  return h('section',{class:'panel admin-panel'},h('h2',{},tr('Cloud & API')),holder)}
 function aiView(){

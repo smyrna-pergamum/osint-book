@@ -1,5 +1,11 @@
 # Changelog
 
+## Windows / Web 0.2.1
+- Cloud & API: the Groq preset now uses `openai/gpt-oss-120b`; Groq shut down `llama-3.3-70b-versatile` for free and developer accounts on 16 August 2026
+- When a provider does not know the configured model, the error lists the chat models it currently offers
+- Adding or editing a provider fetches the provider's models automatically and replaces a model name it no longer offers
+- More flexible provider form: every setting of a saved provider can be edited (name, URL, model, key, limits), the model can be picked from the provider's list or typed, the connection can be tested before saving, a typed key can be shown while typing and a saved key can be removed, and advanced settings cover the key header (Bearer, api-key, x-api-key, none), extra HTTP headers, context window and maximum output
+
 ## Windows / Web 0.2.0
 First release of the Windows edition (`web/`), a server used from the browser on the same PC or a trusted local network.
 - Shared workspace with named accounts, roles, password reset requests, encrypted provider keys and an activity log; separate admin panel bound to localhost

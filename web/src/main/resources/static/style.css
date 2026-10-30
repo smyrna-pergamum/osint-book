@@ -25,3 +25,4 @@ dialog:has(.ai-quant){width:min(900px,96vw)}.ai-quant td{vertical-align:middle}.
 [dir=rtl] .observation{border-left:0;border-right:3px solid #e8590c;border-radius:7px 0 0 7px}
 .card-meta{display:flex;gap:14px;flex-wrap:wrap}.card footer .actions{flex-wrap:nowrap}
 .card footer button{white-space:nowrap}
+.cloud-form{min-width:min(640px,86vw)}.cloud-key{display:flex;gap:6px}.cloud-key input{flex:1}.cloud-model-list{width:100%;font-family:Consolas,monospace;font-size:12px}.cloud-advanced{border:1px solid var(--line);border-radius:8px;padding:8px 12px}.cloud-advanced summary{cursor:pointer;font-weight:600}.cloud-advanced textarea{width:100%;font-family:Consolas,monospace;font-size:12px}.cloud-result:empty{display:none}.cloud-result p{margin:4px 0}dialog:has(.cloud-form){width:min(760px,96vw)}

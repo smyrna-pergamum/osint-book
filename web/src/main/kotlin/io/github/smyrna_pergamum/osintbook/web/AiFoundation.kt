@@ -270,7 +270,7 @@ class HuggingFaceHub(private val client: OkHttpClient = OkHttpClient.Builder().c
     private val infoCache=java.util.concurrent.ConcurrentHashMap<String,Pair<Long,JsonObject>>()
     private fun read(url: String): JsonElement {
         try {
-            client.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.0").build()).execute().use { response ->
+            client.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.1").build()).execute().use { response ->
                 when(response.code) { 401,403 -> throw IllegalArgumentException("ai_repository_access_denied"); 404 -> throw IllegalArgumentException("ai_repository_not_found"); 429 -> throw IllegalArgumentException("ai_hub_rate_limited") }
                 require(response.isSuccessful) { "ai_hub_unavailable" }
                 val body=response.body ?: throw IllegalArgumentException("ai_hub_unavailable")

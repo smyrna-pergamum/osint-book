@@ -1,6 +1,6 @@
 # OSINT-Book for Windows — user and administrator guide
 
-**Version 0.2.0** · Windows 10/11 (x64) · [Download](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.0) · [Changelog](../CHANGELOG.md)
+**Version 0.2.1** · Windows 10/11 (x64) · [Download](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1) · [Changelog](../CHANGELOG.md)
 
 The Windows edition of OSINT-Book runs as a small server on a Windows PC. You and your team use it in Edge or Chrome, on the same computer or from other computers on a trusted local network. It shares the sources, rule-based analysis and JSON format of the Android app, and adds a shared workspace, optional AI analysis and template-based reports.
 
@@ -30,7 +30,7 @@ Java and the llama.cpp engine (CPU and Vulkan builds) are included in the ZIP.
 
 ## 2. Quick start
 
-1. Download `OSINT-Book-Web-0.2.0-Windows-x64.zip` from the [release page](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.0). You can compare its SHA-256 with the `.sha256` file published next to it. Then extract the ZIP into a permanent folder such as `C:\OSINT-Book`.
+1. Download `OSINT-Book-Web-0.2.1-Windows-x64.zip` from the [release page](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1). You can compare its SHA-256 with the `.sha256` file published next to it. Then extract the ZIP into a permanent folder such as `C:\OSINT-Book`.
 2. Start the server:
    - `Start-Local.bat`: only this computer can connect.
    - `Start-LAN.bat`: other computers on your local network can connect too. The console shows the server's IPv4 addresses. If Windows Firewall asks, allow **private networks only**.
@@ -79,11 +79,15 @@ As a rough guide for Q4_K_M files: models of 0.5B–1.5B parameters run on 8 GB 
 ### 4.2 Add a cloud or API provider (admin panel → AI Models → Cloud & API)
 
 1. Pick a provider from the list. It includes Google AI Studio (Gemini), Groq, Cerebras, OpenRouter, Hugging Face Inference, Mistral, Cohere, Together AI, Fireworks, DeepInfra, SambaNova, Novita, Hyperbolic, AI/ML API and DeepSeek from [free-ai-apis](https://github.com/OuterSpacee/free-ai-apis); local Ollama, LM Studio and LiteLLM servers; and *Other OpenAI-compatible API*. Use **Get API key** to open the provider's key page.
-2. Enter the API key, use **Fetch models** to pick a current model name, and **Save**.
-3. Press **Test**. If the test fails, the message includes the provider's own explanation, for example an invalid key, a retired model or an exhausted quota.
+2. Enter the API key. The provider's models are fetched automatically, and you can pick one from the list or type its name. A name the provider no longer offers is replaced by a current one.
+3. Press **Test connection** to check the settings before saving, then **Save**. **Test** on a saved provider repeats the check later. If a check fails, the message includes the provider's own explanation (for example an invalid key, a retired model or an exhausted quota) and lists the models the provider currently offers.
 
-The key is stored encrypted on the server and is never shown again. Internet providers must use HTTPS; plain HTTP is allowed only for this computer or for private-network addresses. Providers can be disabled or deleted at any time.
+**Advanced settings** cover the other kinds of API:
+- **Authentication:** how the key is sent: `Authorization: Bearer` (the default), `api-key` (for example Azure OpenAI), `x-api-key`, or no key at all.
+- **Extra HTTP headers:** one per line as `Name: value`, for example OpenRouter's `HTTP-Referer`. Do not put secrets here.
+- **Context window** and **max output tokens**.
 
+Every setting of a saved provider can be changed later with **Edit**. There you can also replace the key (the key you type can be shown while typing) or remove it. The key is stored encrypted on the server and is never sent back to the browser. Internet providers must use HTTPS; plain HTTP is allowed only for this computer or for private-network addresses. Providers can be disabled or deleted at any time.
 ### 4.3 Analyze (user panel → investigation → Analysis)
 
 1. Under **Analyze with AI**, choose the **AI model**. Any signed-in user can choose any installed local model or any enabled provider; a local model that is not loaded yet is loaded automatically.
