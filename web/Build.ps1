@@ -1,4 +1,4 @@
-param([switch]$BundleRuntime)
+param([switch]$BundleRuntime, [string]$Version = '0.2.0')
 $ErrorActionPreference = 'Stop'
 if (-not $env:JAVA_HOME) {
     $javaCommand = Get-Command java -ErrorAction SilentlyContinue
@@ -6,7 +6,7 @@ if (-not $env:JAVA_HOME) {
     else {
         $candidate = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs/Java') -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Where-Object { Test-Path (Join-Path $_.FullName 'bin/javac.exe') } | Select-Object -First 1
         if ($candidate) { $env:JAVA_HOME = $candidate.FullName }
-        else { throw 'Derleme icin JDK 21+ kurun ve JAVA_HOME ayarlayin.' }
+        else { throw 'Install JDK 21+ and set JAVA_HOME to build.' }
     }
 }
 Push-Location (Split-Path $PSScriptRoot)
@@ -27,20 +27,29 @@ try {
         Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ggml-org/llama.cpp/8542e9435/LICENSE' -OutFile (Join-Path $aiRuntime 'LICENSE')
     }
     & .\gradlew.bat -p web test installDist --console=plain
-    if ($LASTEXITCODE -ne 0) { throw 'Derleme veya test basarisiz.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Build or tests failed.' }
     if ($BundleRuntime) {
         $runtime = Join-Path $PSScriptRoot 'build/install/osint-book-web/runtime'
         if (-not (Test-Path $runtime)) {
             & (Join-Path $env:JAVA_HOME 'bin/jlink.exe') --add-modules java.se,jdk.unsupported,jdk.crypto.ec,jdk.crypto.cryptoki,jdk.management --strip-debug --no-header-files --no-man-pages --output $runtime
-            if ($LASTEXITCODE -ne 0) { throw 'Java calisma ortami olusturulamadi.' }
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the bundled Java runtime.' }
         }
     }
     $output = Join-Path $PSScriptRoot 'build/distributions'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
-    $archive = Join-Path $output 'OSINT-Book-Web-Windows.zip'
-    # Runtime data must never enter a distribution or release archive.
+    $archive = Join-Path $output "OSINT-Book-Web-$Version-Windows-x64.zip"
+    # Runtime data (accounts, keys, investigations, models) must never enter a release archive:
+    # package a staged copy without the data folder.
     $source = Join-Path $PSScriptRoot 'build/install/osint-book-web'
-    if (Test-Path (Join-Path $source 'data')) { throw 'Paket klasorunde kullanici verisi var. Temiz bir installDist klasorunde paketleyin.' }
-    Compress-Archive -Path $source -DestinationPath $archive -Force
-    Write-Host "Hazir: $archive"
+    $stage = Join-Path $PSScriptRoot 'build/package/osint-book-web'
+    if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+    Get-ChildItem $source -Force | Where-Object { $_.Name -ne 'data' } | Copy-Item -Destination $stage -Recurse -Force
+    if (Test-Path $archive) { Remove-Item -Force $archive }
+    Compress-Archive -Path $stage -DestinationPath $archive -CompressionLevel Optimal
+    Remove-Item -Recurse -Force (Split-Path $stage)
+    $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    Set-Content -Path "$archive.sha256" -Value "$hash  $(Split-Path $archive -Leaf)" -Encoding ascii
+    Write-Host "Ready: $archive"
+    Write-Host "SHA-256: $hash"
 } finally { Pop-Location }

@@ -137,7 +137,7 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
                 if(Files.exists(dest) && Files.exists(manifest)){download=buildJsonObject {put("state","complete");put("id",id);put("filename",filename);put("alreadyInstalled",true)};return@launch}
                 require(Files.getFileStore(dir).usableSpace > size+512L*1024*1024){"ai_insufficient_disk"}
                 val url=HttpUrl.Builder().scheme("https").host("huggingface.co").addPathSegments(repository).addPathSegment("resolve").addPathSegment(rev).addPathSegment(filename).build()
-                val call=downloadClient.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.3").build());downloadCall=call
+                val call=downloadClient.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.0").build());downloadCall=call
                 val started=System.nanoTime()
                 call.execute().use { resp ->
                     when(resp.code){401,403->throw IllegalArgumentException("ai_repository_access_denied");404->throw IllegalArgumentException("ai_file_missing");429->throw IllegalArgumentException("ai_hub_rate_limited")}

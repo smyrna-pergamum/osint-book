@@ -113,7 +113,7 @@ class CloudAi(private val root: Path, private val secrets: Secrets,
     }
     @Synchronized fun delete(id: String) { get(id);secrets.save(secretId(id),null);save(list().filterNot { it.id==id }) }
 
-    private fun request(base: String, path: String, key: String?) = Request.Builder().url("$base/$path").header("User-Agent","OSINT-Book-Web/0.3")
+    private fun request(base: String, path: String, key: String?) = Request.Builder().url("$base/$path").header("User-Agent","OSINT-Book-Web/0.2.0")
         .apply { if(!key.isNullOrBlank()) header("Authorization","Bearer $key") }
     private fun failure(code: Int)=when(code) { 401,403 -> "ai_cloud_key_rejected"; 404 -> "ai_cloud_model_not_found"; 429 -> "ai_cloud_rate_limited"; else -> "ai_cloud_http_$code" }
     /** OpenAI-style {"error":{"message":...}}, {"error":"..."} or {"message":...}; falls back to the start of the body. */

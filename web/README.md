@@ -1,10 +1,10 @@
-# OSINT-Book Web 0.2 — Windows and local networks
+# OSINT-Book Web 0.2.0 — Windows and local networks
 
 Run OSINT-Book in Edge or Chrome using a Windows server. The interface is available in English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский and العربية (right-to-left). It follows the browser language until a user picks one with the language selector. All users share the same investigations.
 
 ## Start the Windows package
 
-1. Extract OSINT-Book-Web-Windows.zip into a permanent folder.
+1. Download OSINT-Book-Web-0.2.0-Windows-x64.zip from the [releases](https://github.com/smyrna-pergamum/osint-book/releases) and extract it into a permanent folder. Windows 10 or 11 (x64) is required; Java and llama.cpp are included.
 2. Run Start-Local.bat for this computer, or Start-LAN.bat for other computers on your local network.
 3. On the first start, choose the user and admin ports (defaults 8080 and 8081), then create an administrator username and a password of at least 12 characters in the console. Answer `y` to add additional users and choose whether each is an administrator; answer `n` or press Enter to finish. Accounts persist across restarts.
 4. Open the user panel address shown in the console, for example http://localhost:8080. LAN clients use the server IPv4 address and the chosen user port. Sign in with your username and password.
@@ -128,4 +128,4 @@ Install JDK 21 or later and set JAVA_HOME. From the repository root, run:
 .\web\Build.ps1 -BundleRuntime
 ```
 
-The build downloads the two llama.cpp runtimes once (checksums verified), runs tests and creates web/build/distributions/OSINT-Book-Web-Windows.zip. Android SDK is not needed for this web module. The distribution excludes runtime user data.
+The build downloads the two llama.cpp runtimes once (checksums verified), runs tests and creates web/build/distributions/OSINT-Book-Web-<version>-Windows-x64.zip with a .sha256 file next to it. Android SDK is not needed for this web module. The distribution excludes runtime user data.

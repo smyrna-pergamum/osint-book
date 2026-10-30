@@ -65,6 +65,16 @@ kotlin.sourceSets.test {
     kotlin.srcDir("../app/src/test/java")
 }
 
+// cmd.exe limits a line to 8191 characters; listing every jar breaks the launcher in deep folders. Java expands lib\* itself.
+tasks.named<CreateStartScripts>("startScripts") {
+    doLast {
+        windowsScript.writeText(windowsScript.readText().replace(Regex("(?m)^set CLASSPATH=.*$"), "set CLASSPATH=%APP_HOME%\\\\lib\\\\*"))
+    }
+}
+
+// A server started from build/install keeps its data there; never delete it when reinstalling.
+tasks.named<Sync>("installDist") { preserve { include("data/**") } }
+
 distributions {
     main {
         contents {

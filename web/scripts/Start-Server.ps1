@@ -1,8 +1,11 @@
 param([switch]$LAN)
 $ErrorActionPreference = 'Stop'
 $package = $PSScriptRoot
+$defaultData = Join-Path $package 'data'
 if (-not (Test-Path (Join-Path $package 'bin/osint-book-web.bat'))) {
     $package = Join-Path (Split-Path $PSScriptRoot) 'build/install/osint-book-web'
+    # Running from the source tree: keep data outside build/, which every build replaces.
+    $defaultData = Join-Path (Split-Path $PSScriptRoot) 'data'
 }
 $launcher = Join-Path $package 'bin/osint-book-web.bat'
 if (-not (Test-Path $launcher)) { throw 'Run web/Build.ps1 first, or extract the Windows ZIP package.' }
@@ -18,7 +21,7 @@ if (Test-Path (Join-Path $package 'runtime/bin/java.exe')) {
         else { throw 'Java 21+ is required. Set JAVA_HOME to your Java installation.' }
     }
 }
-if (-not $env:OSINT_DATA) { $env:OSINT_DATA = Join-Path $package 'data' }
+if (-not $env:OSINT_DATA) { $env:OSINT_DATA = $defaultData }
 $env:OSINT_HOST = if ($LAN) { '0.0.0.0' } else { '127.0.0.1' }
 if ($LAN) {
     Write-Host 'LAN mode: use the user panel port shown below with the server IPv4 address.'
