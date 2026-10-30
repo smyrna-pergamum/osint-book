@@ -8,3 +8,6 @@ signing/
 release/
 *.jks
 *.keystore
+web/data/
+web/.runtime/
+web/*.local.ps1

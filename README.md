@@ -1,13 +1,14 @@
 # OSINT-Book
 
-**A local-first, passive OSINT notebook for Android.**
+**A local-first, passive OSINT notebook for Android and Windows.**
 
 OSINT-Book collects public information about domains, URLs, IP addresses, organisations, GitHub repositories, software packages and file hashes from sources you choose. Every finding keeps its source link and retrieval time. A rule-based analysis reads the findings for you, and everything can be exported as a PDF, CSV or JSON report.
 
-No account, no cloud, no ads, no tracking. Your investigations stay on your phone.
+No account, no ads, no tracking. On Android your investigations stay on your phone; the [Windows edition](#windows--web) keeps them on your own server and adds optional AI analysis and template-based reports.
 
 [![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)
+![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4)
 ![Languages: 9](https://img.shields.io/badge/languages-9-orange)
 [![Latest release](https://img.shields.io/github/v/release/smyrna-pergamum/osint-book?include_prereleases)](https://github.com/smyrna-pergamum/osint-book/releases)
 
@@ -29,6 +30,7 @@ No account, no cloud, no ads, no tracking. Your investigations stay on your phon
 - [Privacy and scope](#privacy-and-scope)
 - [Install](#install)
 - [Build from source](#build-from-source)
+- [Windows / Web](#windows--web)
 - [Project status](#project-status)
 - [Licence](#licence)
 
@@ -92,9 +94,11 @@ Full details: [PRIVACY.md](PRIVACY.md).
 
 ## Install
 
-Download the APK from the [latest release](https://github.com/smyrna-pergamum/osint-book/releases/latest), then open it on your phone and allow installing from that source. Android 8.0 or newer is required.
+**Android:** download the APK from the [latest release](https://github.com/smyrna-pergamum/osint-book/releases/latest), then open it on your phone and allow installing from that source. Android 8.0 or newer is required.
 
 Check that the file is genuine by comparing its SHA-256 and the signing certificate fingerprint with the values in the release notes.
+
+**Windows:** see [Windows / Web](#windows--web) below.
 
 ## Build from source
 
@@ -107,9 +111,35 @@ Requires OpenJDK 17+ and the Android SDK (platform 36). No paid service or accou
 
 Signing and pinned versions: [BUILDING.md](BUILDING.md).
 
+## Windows / Web
+
+OSINT-Book Web runs on a Windows PC or server and is used from Edge or Chrome on the same computer or on your trusted local network. Several people share one workspace, each with their own account. It uses the same sources, validation, rule-based analysis and JSON format as the Android app, so investigations can move between them.
+
+<p>
+  <img src="docs/screenshots/web_1_workspace.png" width="400" alt="Shared investigation workspace">
+  <img src="docs/screenshots/web_2_ai_analysis.png" width="400" alt="AI analysis with evidence-linked observations">
+</p>
+<p>
+  <img src="docs/screenshots/web_3_ai_models.png" width="400" alt="AI model management in the admin panel">
+  <img src="docs/screenshots/web_4_report.png" width="400" alt="Report page with template preview">
+</p>
+
+| | |
+|---|---|
+| **Shared server** | User panel for the team (local network) and a separate admin panel that only opens on the server itself. Accounts, roles, password reset requests, encrypted provider keys and an activity log. |
+| **Local AI (offline)** | Download open models from Hugging Face (recommended for your hardware, popular, or search; choose the quantization). Every download is verified with SHA-256. Models run with the bundled llama.cpp on the CPU or a Vulkan GPU (AMD, NVIDIA, Intel), and analysis works without internet. |
+| **Cloud & API (optional)** | Add free AI APIs such as Gemini, Groq, OpenRouter, Mistral or DeepSeek, or a local Ollama / LM Studio server. Selected findings are sent only after the user confirms, and every cloud analysis is logged. |
+| **Analyze with AI** | Any user picks a model and an output language. The result contains a summary, observations linked to the cited findings, contradictions between sources, missing information, verification steps and a risk matrix. Large selections are split into parts automatically for small models. Findings and review statuses are never changed. |
+| **Prepare report** | A report following the *OSINT Analysis Report* template: cover, executive summary, scope and method, source and evidence register (K-001…), findings and AI inferences (B-01…), risks and recommendations, human review. Download as PDF, HTML or JSON in any of the nine languages. |
+| **Languages** | The whole interface and the reports in English, Türkçe, Deutsch, Français, Español, Italiano, Português, Русский and العربية (right-to-left). |
+
+**Install:** download `OSINT-Book-Web-…-Windows-x64.zip` from the [releases](https://github.com/smyrna-pergamum/osint-book/releases), extract it to a permanent folder and run `Start-Local.bat` (this computer only) or `Start-LAN.bat` (local network). Java, llama.cpp (CPU and Vulkan) are included; AI models are downloaded later from the admin panel. Windows 10/11 x64; 8 GB RAM is enough for small CPU models. The first start asks for the ports and creates the administrator account.
+
+Full guide, AI setup, cloud privacy notes and limitations: [web/README.md](web/README.md).
+
 ## Project status
 
-Version 0.1.0 is an early release. It is tested with unit tests and on an Android 15 emulator, not yet on many real devices. Bug reports and suggestions are welcome in [Issues](https://github.com/smyrna-pergamum/osint-book/issues).
+Android 0.1.0 and Windows / Web 0.2.0 are early releases. The Android app is tested with unit tests and on an Android 15 emulator, not yet on many real devices. The Windows edition is tested with unit tests and end to end on Windows 11 (CPU and Vulkan iGPU, real Hugging Face downloads, a local OpenAI-compatible endpoint); cloud providers were not yet tested with live keys. Bug reports and suggestions are welcome in [Issues](https://github.com/smyrna-pergamum/osint-book/issues).
 
 Key-based sources were tested against their documented responses but not yet with live keys for every provider.
 
