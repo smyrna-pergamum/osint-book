@@ -3,6 +3,7 @@ package io.github.smyrna_pergamum.osintbook.web
 import io.github.smyrna_pergamum.osintbook.data.Time
 import io.github.smyrna_pergamum.osintbook.export.InvestigationBundle
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import okhttp3.*
@@ -40,8 +41,6 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
     @Volatile private var settings:EngineSettings?=null
     @Volatile private var engine:JsonObject=buildJsonObject { put("state","idle") }
     @Volatile private var loadJob:Job?=null
-    @Volatile private var analysisJob:Job?=null
-    @Volatile private var analysisInvestigation:String?=null
     @Volatile private var generateCall:Call?=null
     private val analyses=ConcurrentHashMap<String,JsonObject>()
     @Volatile private var devices:List<GpuDevice>?=null
@@ -137,7 +136,7 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
                 if(Files.exists(dest) && Files.exists(manifest)){download=buildJsonObject {put("state","complete");put("id",id);put("filename",filename);put("alreadyInstalled",true)};return@launch}
                 require(Files.getFileStore(dir).usableSpace > size+512L*1024*1024){"ai_insufficient_disk"}
                 val url=HttpUrl.Builder().scheme("https").host("huggingface.co").addPathSegments(repository).addPathSegment("resolve").addPathSegment(rev).addPathSegment(filename).build()
-                val call=downloadClient.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.1").build());downloadCall=call
+                val call=downloadClient.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.2").build());downloadCall=call
                 val started=System.nanoTime()
                 call.execute().use { resp ->
                     when(resp.code){401,403->throw IllegalArgumentException("ai_repository_access_denied");404->throw IllegalArgumentException("ai_file_missing");429->throw IllegalArgumentException("ai_hub_rate_limited")}
@@ -195,14 +194,14 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
     // ---- Engine ----
     private fun failed(error:String,detail:String?=null)=buildJsonObject {put("state","failed");put("error",error);detail?.let { put("detail",it) }}
     @Synchronized fun unload(){
-        require(analysisJob?.isCompleted!=false){"ai_analysis_running"}
+        require(runningLocal==null){"ai_analysis_running"}
         loadJob?.cancel();stopProcess();settings=null;engine=buildJsonObject { put("state","idle") }
         Files.deleteIfExists(activeFile)
     }
     private fun stopProcess(){process?.let { it.destroy();if(!it.waitFor(5,TimeUnit.SECONDS)) it.destroyForcibly();runCatching { Files.deleteIfExists(pidFile) } };process=null;active=null}
     /** Validates synchronously, then loads in the background; poll [engineStatus]. */
-    @Synchronized fun activate(request:EngineSettings,persist:Boolean=true) {
-        require(analysisJob?.isCompleted!=false){"ai_analysis_running"}
+    @Synchronized fun activate(request:EngineSettings,persist:Boolean=true,fromQueue:Boolean=false) {
+        require(fromQueue || runningLocal==null){"ai_analysis_running"}
         val s=request.copy(threads=request.threads.takeIf { it>0 } ?: defaultThreads())
         require(s.backend in setOf("cpu","gpu") && s.context in 1024..32768 && s.threads in 1..Runtime.getRuntime().availableProcessors()){"ai_invalid_settings"}
         val model=installed().firstOrNull {it.id==s.modelId} ?: throw NoSuchElementException()
@@ -298,9 +297,10 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
 
     // ---- Analysis ----
     private fun analysisPath(investigationId:String):Path { require(Regex("[A-Za-z0-9-]{1,64}").matches(investigationId)){"not_found"};return analysisDir.resolve("$investigationId.json") }
-    fun analysisStatus(investigationId:String):JsonObject = analyses[investigationId]
+    fun analysisStatus(investigationId:String):JsonObject = (analyses[investigationId]
         ?: runCatching { json.parseToJsonElement(Files.readString(analysisPath(investigationId))).jsonObject }.getOrNull()?.also { analyses[investigationId]=it }
-        ?: buildJsonObject { put("state","idle") }
+        ?: buildJsonObject { put("state","idle") }).let { st ->
+            if(st["state"]?.jsonPrimitive?.content=="queued") JsonObject(st+("position" to JsonPrimitive(queuePosition(investigationId)))) else st }
     /** A failed or cancelled attempt does not hide the last saved result; it is attached as lastAttempt. */
     private fun keepPrevious(investigationId:String,attempt:JsonObject):JsonObject =
         runCatching { json.parseToJsonElement(Files.readString(analysisPath(investigationId))).jsonObject }.getOrNull()?.let { JsonObject(it+("lastAttempt" to attempt)) } ?: attempt
@@ -308,65 +308,88 @@ class LocalAi(private val root: Path, private val cpuRuntime: Path, private val 
     /** Engine choice for one analysis: an installed local model (loaded on demand) or a configured cloud provider. */
     sealed interface Engine { data class Local(val modelId:String?):Engine; data class Cloud(val backend:CloudAi.CloudBackend):Engine }
     @Volatile private var currentBackend:LocalInferenceBackend?=null
-    /** Any signed-in user may choose any installed model or enabled provider; one analysis runs on the server at a time. */
+    /** Analyses run one at a time in the order they were requested; the others wait in this queue. */
+    private val turn=kotlinx.coroutines.sync.Mutex()
+    private val waiting=java.util.concurrent.CopyOnWriteArrayList<String>()
+    private val jobs=ConcurrentHashMap<String,Job>()
+    @Volatile private var runningLocal:String?=null
+    fun queuePosition(investigationId:String)=waiting.indexOf(investigationId).let { if(it<0) 0 else it+1 }
+    /** Any signed-in user may choose any installed model or enabled provider. Requests are queued and processed in order. */
     @Synchronized fun analyze(bundle:InvestigationBundle,ids:List<String>,engine:Engine=Engine.Local(null),language:String="en") {
         val invId=bundle.investigation.id;analysisPath(invId)
-        // isCompleted, not isActive: a cancelled job may still be closing its engine connection.
-        require(analysisJob?.isCompleted!=false){if(analysisInvestigation==invId)"ai_analysis_running" else "ai_analysis_busy"}
+        require(jobs[invId]?.isCompleted!=false){"ai_analysis_running"}
         val evidence=AiEvidencePolicy.select(bundle,ids)
         val lang=AiLanguages.of(language)
-        val engineInfo:JsonObject;val contextTokens:Int;val engineRef:String
+        val engineInfo:JsonObject;val engineRef:String;val wanted:String?
         when(engine) {
             is Engine.Local -> {
-                val wanted=engine.modelId ?: activeModel()?.id ?: settings?.modelId ?: throw IllegalArgumentException("ai_model_not_loaded")
+                wanted=engine.modelId ?: activeModel()?.id ?: settings?.modelId ?: throw IllegalArgumentException("ai_model_not_loaded")
                 val model=installed().firstOrNull { it.id==wanted } ?: throw IllegalArgumentException("ai_model_not_installed")
-                // Load the chosen model when another one (or none) is active; the analysis waits for it.
-                if(activeModel()?.id!=wanted && !(settings?.modelId==wanted && engine()=="loading")) {
-                    val dedicated=gpus().any { !it.integrated }
-                    activate(EngineSettings(wanted,if(dedicated) "gpu" else "cpu",settings?.takeIf { it.modelId==wanted }?.context ?: 8192))
-                }
-                contextTokens=settings!!.context;engineRef="local:$wanted"
+                val backendName=settings?.takeIf { it.modelId==wanted }?.backend ?: if(gpus().any { !it.integrated }) "gpu" else "cpu"
+                engineRef="local:$wanted"
                 engineInfo=buildJsonObject {put("type","local");put("repository",model.repository);put("filename",model.filename)
-                    put("quantization",AiCatalog.quantization(model.filename)?.let(::JsonPrimitive) ?: JsonNull);put("backend",settings!!.backend)}
+                    put("quantization",AiCatalog.quantization(model.filename)?.let(::JsonPrimitive) ?: JsonNull);put("backend",backendName)}
             }
             is Engine.Cloud -> {
-                contextTokens=engine.backend.provider.contextTokens;engineRef="cloud:${engine.backend.provider.id}"
+                wanted=null;engineRef="cloud:${engine.backend.provider.id}"
                 engineInfo=buildJsonObject {put("type","cloud");put("repository",engine.backend.provider.name);put("filename",engine.backend.provider.model);put("quantization",JsonNull);put("backend","cloud")}
             }
         }
-        val startedAt=Time.nowIso();val t0=System.currentTimeMillis()
+        val startedAt=Time.nowIso()
         fun base(state:String)=buildJsonObject {put("state",state);put("investigationId",invId);put("startedAt",startedAt);put("findingIds",json.encodeToJsonElement(ids))
             put("model",engineInfo);put("backend",engineInfo["backend"]!!);put("language",lang);put("engine",engineRef)}
-        analyses[invId]=JsonObject(base("running")+("phase" to JsonPrimitive(if(engine is Engine.Local && engine()=="loading") "loading" else "preparing")))
-        analysisInvestigation=invId
-        analysisJob=scope.launch {
-            var inputTokens=0;var part=0;var phase="preparing";var generated=0
+        waiting+=invId
+        analyses[invId]=base("queued")
+        jobs[invId]=scope.launch {
+            var inputTokens=0;var part=0;var phase="preparing";var generated=0;var waitSeconds=0
+            fun progress()=JsonObject(base("running")+mapOf("phase" to JsonPrimitive(phase),"part" to JsonPrimitive(part),"inputTokens" to JsonPrimitive(inputTokens),
+                "generatedTokens" to JsonPrimitive(generated),"waitSeconds" to JsonPrimitive(waitSeconds)))
             try {
-                val backend:LocalInferenceBackend=when(engine) {
-                    is Engine.Local -> {
-                        while(engine()=="loading") delay(500)
-                        require(engine()=="ready"){engineStatus()["error"]?.jsonPrimitive?.contentOrNull ?: "ai_model_load_failed"}
-                        LlamaBackend()
+                turn.withLock {
+                    waiting.remove(invId)
+                    val t0=System.currentTimeMillis()
+                    analyses[invId]=progress()
+                    val backend:LocalInferenceBackend
+                    val contextTokens:Int
+                    when(engine) {
+                        is Engine.Local -> {
+                            runningLocal=invId
+                            // Load the chosen model when its turn comes; another one may have been active until now.
+                            if(activeModel()?.id!=wanted && !(settings?.modelId==wanted && engine()=="loading")) {
+                                val dedicated=gpus().any { !it.integrated }
+                                activate(EngineSettings(wanted!!,if(dedicated) "gpu" else "cpu",settings?.takeIf { it.modelId==wanted }?.context ?: 8192),fromQueue=true)
+                            }
+                            phase="loading";analyses[invId]=progress()
+                            while(engine()=="loading") delay(500)
+                            require(engine()=="ready"){engineStatus()["error"]?.jsonPrimitive?.contentOrNull ?: "ai_model_load_failed"}
+                            backend=LlamaBackend();contextTokens=settings!!.context
+                        }
+                        is Engine.Cloud -> { backend=engine.backend;contextTokens=engine.backend.provider.contextTokens }
                     }
-                    is Engine.Cloud -> engine.backend
+                    currentBackend=backend
+                    val output=AiEvaluator(backend).run(bundle,ids,contextTokens,lang) { p,n ->
+                        when(p) { "part" -> {part=n;generated=0;waitSeconds=0}; "reading" -> {inputTokens=n;phase=p;generated=0;waitSeconds=0}
+                            "writing" -> {phase=p;generated=n}; "waiting" -> {phase=p;waitSeconds=n}; else -> phase=p }
+                        analyses[invId]=progress()
+                    }
+                    ensureActive()
+                    val result=JsonObject(base("complete")+mapOf("output" to json.encodeToJsonElement(output),"fingerprint" to JsonPrimitive(AiEvidencePolicy.fingerprint(evidence)),
+                        "completedAt" to JsonPrimitive(Time.nowIso()),"durationMs" to JsonPrimitive(System.currentTimeMillis()-t0),"inputTokens" to JsonPrimitive(inputTokens),
+                        "promptVersion" to JsonPrimitive(AiEvaluator.PROMPT_VERSION)))
+                    Files.writeString(analysisPath(invId),result.toString());analyses[invId]=result
                 }
-                currentBackend=backend
-                val output=AiEvaluator(backend).run(bundle,ids,contextTokens,lang) { p,n ->
-                    when(p) { "part" -> {part=n;generated=0}; "reading" -> {inputTokens=n;phase=p;generated=0}; "writing" -> {phase=p;generated=n}; else -> phase=p }
-                    analyses[invId]=JsonObject(base("running")+mapOf("phase" to JsonPrimitive(phase),"part" to JsonPrimitive(part),"inputTokens" to JsonPrimitive(inputTokens),"generatedTokens" to JsonPrimitive(generated)))
-                }
-                ensureActive()
-                val result=JsonObject(base("complete")+mapOf("output" to json.encodeToJsonElement(output),"fingerprint" to JsonPrimitive(AiEvidencePolicy.fingerprint(evidence)),
-                    "completedAt" to JsonPrimitive(Time.nowIso()),"durationMs" to JsonPrimitive(System.currentTimeMillis()-t0),"inputTokens" to JsonPrimitive(inputTokens),
-                    "promptVersion" to JsonPrimitive(AiEvaluator.PROMPT_VERSION)))
-                Files.writeString(analysisPath(invId),result.toString());analyses[invId]=result
             }catch(e:CancellationException){analyses[invId]=keepPrevious(invId,base("cancelled"))}
             catch(e:Exception){analyses[invId]=keepPrevious(invId,JsonObject(base("failed")+mapOf("error" to JsonPrimitive(e.message?.take(120) ?: "ai_analysis_failed"),
                 "detail" to ((e as? CloudError)?.detail?.let(::JsonPrimitive) ?: JsonNull))))}
-            finally { currentBackend=null }
+            finally { waiting.remove(invId);if(runningLocal==invId) runningLocal=null;currentBackend=null }
         }
     }
     private fun engine()=engineStatus()["state"]?.jsonPrimitive?.content
-    @Synchronized fun cancelAnalysis(investigationId:String){ if(analysisInvestigation==investigationId){analysisJob?.cancel();currentBackend?.cancel()} }
-    override fun close(){cancelDownload();analysisJob?.cancel();currentBackend?.cancel();loadJob?.cancel();stopProcess();scope.cancel()}
+    /** Cancels a running analysis, or removes a queued one from the queue. */
+    @Synchronized fun cancelAnalysis(investigationId:String){
+        val job=jobs[investigationId] ?: return
+        if(investigationId !in waiting) currentBackend?.cancel()
+        job.cancel()
+    }
+    override fun close(){cancelDownload();jobs.values.forEach { it.cancel() };currentBackend?.cancel();loadJob?.cancel();stopProcess();scope.cancel()}
 }

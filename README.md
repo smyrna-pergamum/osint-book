@@ -12,7 +12,7 @@ It comes in two editions that share the same sources, analysis and file format:
 | Data stays | On your phone | On your own server |
 | Analysis | Rule-based | Rule-based + optional AI (local models offline, or cloud APIs) |
 | Reports | PDF, CSV, JSON | Template-based PDF, HTML, JSON report + CSV, JSON |
-| Download | [APK (v0.1.0)](https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0) | [Windows ZIP (web-v0.2.1)](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1) |
+| Download | [APK (v0.1.0)](https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0) | [Windows ZIP (web-v0.2.2)](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.2) |
 
 No account, no ads, no tracking, no telemetry.
 
@@ -112,9 +112,9 @@ There is deliberately **no overall risk score** and no verdict.
 The Windows edition can interpret selected findings with a language model. It is optional, and you decide where the model runs:
 
 - **Local models, offline.** In the admin panel, pick an open model from Hugging Face: recommended for your hardware, popular, or by search. Then choose a quantization. Each download is verified with SHA-256, and the model runs on the server with the bundled [llama.cpp](https://github.com/ggml-org/llama.cpp), on the CPU or on a Vulkan GPU (AMD, NVIDIA or Intel). Once the model is downloaded, analysis needs no internet connection.
-- **Cloud and API providers.** Add free AI APIs such as Google Gemini, Groq, OpenRouter, Mistral or DeepSeek, a local Ollama or LM Studio server, or any OpenAI-compatible API. The selected findings are sent only after the user confirms, and every cloud analysis is recorded in the activity log.
+- **Cloud and API providers.** Add free AI APIs such as Google Gemini, Groq, OpenRouter, NVIDIA NIM, Cloudflare Workers AI or Mistral; paid APIs with your own key (OpenAI, Anthropic Claude, Azure OpenAI, xAI Grok, Perplexity, DeepSeek); a local Ollama or LM Studio server; or any OpenAI-compatible API. Free-tier rate limits are respected: large selections are split and sent one after another. The selected findings are sent only after the user confirms, and every cloud analysis is recorded in the activity log.
 
-The result contains a summary, observations with titles, confidence and alternative explanations (each linked to the findings it cites), contradictions between sources, missing information, verification steps and a risk matrix. The user chooses the output language. Selections that are too large for a small model are split into parts and merged automatically. AI output is presented as interpretation, and the original findings and their review status are never changed.
+The result contains a summary, observations with titles, confidence and alternative explanations (each linked to the findings it cites), contradictions between sources, missing information, verification steps and a risk matrix. The user chooses the output language. Analyses are queued and run one after another. Selections that are too large for a small model or a provider limit are split into parts and merged automatically. AI output is presented as interpretation, and the original findings and their review status are never changed.
 
 ## Reports
 
@@ -136,7 +136,7 @@ Full details: [PRIVACY.md](PRIVACY.md).
 **Android 8.0 or newer.** Download the APK from the [v0.1.0 release](https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0), open it on your phone and allow installing from that source. Before installing, compare the file's SHA-256 and the signing certificate fingerprint with the values in the release notes.
 
 **Windows 10 or 11 (x64).**
-1. Download `OSINT-Book-Web-0.2.1-Windows-x64.zip` from the [web-v0.2.1 release](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1) and extract it into a permanent folder.
+1. Download `OSINT-Book-Web-0.2.2-Windows-x64.zip` from the [web-v0.2.2 release](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.2) and extract it into a permanent folder.
 2. Run `Start-Local.bat` to use it on this computer, or `Start-LAN.bat` to make it available on your local network.
 3. On the first start, choose the ports and create the administrator account.
 4. Open http://localhost:8080.
@@ -152,7 +152,7 @@ No paid service or account is needed. Details and signing: [BUILDING.md](BUILDIN
 
 ## Project status
 
-Both editions are early releases: Android 0.1.0 and Windows 0.2.1.
+Both editions are early releases: Android 0.1.0 and Windows 0.2.2.
 
 - **Android:** tested with unit tests and on an Android 15 emulator, not yet on many real devices.
 - **Windows:** tested with unit tests and end to end on Windows 11, on the CPU and a Vulkan GPU, with real Hugging Face downloads and an OpenAI-compatible endpoint.

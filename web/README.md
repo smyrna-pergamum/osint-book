@@ -1,6 +1,6 @@
 # OSINT-Book for Windows — user and administrator guide
 
-**Version 0.2.1** · Windows 10/11 (x64) · [Download](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1) · [Changelog](../CHANGELOG.md)
+**Version 0.2.2** · Windows 10/11 (x64) · [Download](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.2) · [Changelog](../CHANGELOG.md)
 
 The Windows edition of OSINT-Book runs as a small server on a Windows PC. You and your team use it in Edge or Chrome, on the same computer or from other computers on a trusted local network. It shares the sources, rule-based analysis and JSON format of the Android app, and adds a shared workspace, optional AI analysis and template-based reports.
 
@@ -30,7 +30,7 @@ Java and the llama.cpp engine (CPU and Vulkan builds) are included in the ZIP.
 
 ## 2. Quick start
 
-1. Download `OSINT-Book-Web-0.2.1-Windows-x64.zip` from the [release page](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.1). You can compare its SHA-256 with the `.sha256` file published next to it. Then extract the ZIP into a permanent folder such as `C:\OSINT-Book`.
+1. Download `OSINT-Book-Web-0.2.2-Windows-x64.zip` from the [release page](https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.2). You can compare its SHA-256 with the `.sha256` file published next to it. Then extract the ZIP into a permanent folder such as `C:\OSINT-Book`.
 2. Start the server:
    - `Start-Local.bat`: only this computer can connect.
    - `Start-LAN.bat`: other computers on your local network can connect too. The console shows the server's IPv4 addresses. If Windows Firewall asks, allow **private networks only**.
@@ -78,7 +78,12 @@ As a rough guide for Q4_K_M files: models of 0.5B–1.5B parameters run on 8 GB 
 
 ### 4.2 Add a cloud or API provider (admin panel → AI Models → Cloud & API)
 
-1. Pick a provider from the list. It includes Google AI Studio (Gemini), Groq, Cerebras, OpenRouter, Hugging Face Inference, Mistral, Cohere, Together AI, Fireworks, DeepInfra, SambaNova, Novita, Hyperbolic, AI/ML API and DeepSeek from [free-ai-apis](https://github.com/OuterSpacee/free-ai-apis); local Ollama, LM Studio and LiteLLM servers; and *Other OpenAI-compatible API*. Use **Get API key** to open the provider's key page.
+1. Pick a provider. The list has three groups:
+   - **Free AI APIs**, from [free-ai-apis](https://github.com/OuterSpacee/free-ai-apis) and [awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis): Google AI Studio (Gemini), Groq, Cerebras, OpenRouter, NVIDIA NIM, Cloudflare Workers AI, Mistral, Cohere, Hugging Face Inference, OVHcloud AI Endpoints, LLM7.io, Kilo Code, Gonka Broker, Z AI (GLM), Aion Labs, Together AI, Fireworks, DeepInfra, SambaNova, Novita, Hyperbolic, AI/ML API, ModelScope and SiliconFlow.
+   - **Paid AI APIs**, billed by the provider to your own account. Use **Add API key** for OpenAI, Anthropic (Claude), Azure OpenAI, xAI (Grok), Perplexity or DeepSeek.
+   - **Local servers** on your network: Ollama, LM Studio and LiteLLM.
+
+   Use **+ Custom OpenAI-compatible API** for anything else, and **Get API key** to open the provider's key page.
 2. Enter the API key. The provider's models are fetched automatically, and you can pick one from the list or type its name. A name the provider no longer offers is replaced by a current one.
 3. Press **Test connection** to check the settings before saving, then **Save**. **Test** on a saved provider repeats the check later. If a check fails, the message includes the provider's own explanation (for example an invalid key, a retired model or an exhausted quota) and lists the models the provider currently offers.
 
@@ -86,6 +91,9 @@ As a rough guide for Q4_K_M files: models of 0.5B–1.5B parameters run on 8 GB 
 - **Authentication:** how the key is sent: `Authorization: Bearer` (the default), `api-key` (for example Azure OpenAI), `x-api-key`, or no key at all.
 - **Extra HTTP headers:** one per line as `Name: value`, for example OpenRouter's `HTTP-Referer`. Do not put secrets here.
 - **Context window** and **max output tokens**.
+- **Tokens per minute** and **requests per minute**: the provider's limits (0 means no limit). The presets fill in known free-tier limits, for example 6,000 tokens and 30 requests per minute for Groq.
+
+Free tiers usually limit tokens and requests per minute, and some providers count the requested answer length too. OSINT-Book respects these limits. It splits a large selection into parts that fit and sends them one after another, waiting whenever a limit is reached. When a provider reports a limit (*rate limit* or *request too large*), OSINT-Book waits the time the provider names, or learns the limit and uses smaller parts.
 
 Every setting of a saved provider can be changed later with **Edit**. There you can also replace the key (the key you type can be shown while typing) or remove it. The key is stored encrypted on the server and is never sent back to the browser. Internet providers must use HTTPS; plain HTTP is allowed only for this computer or for private-network addresses. Providers can be disabled or deleted at any time.
 ### 4.3 Analyze (user panel → investigation → Analysis)
@@ -100,11 +108,19 @@ The result shows:
 - **contradictions** between sources. OSINT-Book itself detects differing values for the same attribute, such as two different cities for one IP address, and asks the model to explain them;
 - **missing information**, **suggested verification** steps and a **risk matrix** (identity linkage, staleness, coverage).
 
-Progress is shown while the analysis runs, and you can cancel it without unloading the model. One analysis runs on the server at a time. The latest result of each investigation is saved, and it is marked when the findings it used are edited later.
+Progress is shown while the analysis runs, including the part being analyzed and any wait for a provider's rate limit. You can cancel an analysis without unloading the model. The latest result of each investigation is saved, and it is marked when the findings it used are edited later.
+
+**Queue:** analyses run one after another in the order they were requested. While another analysis is running, a new one shows **Waiting in the queue: position N** and starts automatically when its turn comes; it can be cancelled while it waits. A local model is loaded when its analysis starts.
 
 ### 4.4 Large selections and small models
 
-A local model can read only as much text as its **context size** allows (8192 tokens by default). When the selected findings do not fit, or a small model runs out of space for its answer, OSINT-Book splits the selection into parts automatically, keeping findings about the same target and attribute together. It analyzes each part and merges them into one result. To make this faster:
+A local model can read only as much text as its **context size** allows (8192 tokens by default), and a cloud provider may limit tokens per minute. OSINT-Book adapts to both:
+- **Parts from the start:** the selection is split into parts that suit the model. A 2048-token context gets 2 findings per part, 4096 gets 5, 8192 gets 12, and larger contexts get more. Findings about the same target and attribute stay together. The parts run one after another and are merged into one result with a combined summary.
+- **Smaller parts when needed:** if a part still does not fit, or the model runs out of space for its answer or returns an unreadable answer, the part is split again.
+- **Compact mode:** a single finding that still does not fit is retried with a shorter version of its evidence and a smaller answer format.
+- **Skipping:** a finding that cannot be analyzed even then is skipped and listed under the result, and the rest of the analysis continues. Small models therefore no longer stop with an error because of a large selection.
+
+To make it faster:
 - select fewer findings;
 - reactivate the model with a larger context (16384 or 32768, if memory allows);
 - use a larger model or a cloud provider.

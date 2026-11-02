@@ -195,7 +195,8 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
         /** Connection settings sent by the provider form; headers arrive as {"Name":"value"}. */
         fun JsonObject.cloudSettings()=CloudSettings(text("name",80),text("baseUrl",300),text("model",200),
             text("contextTokens",8).toIntOrNull() ?: 32768,text("maxOutputTokens",8).toIntOrNull() ?: 8192,text("authHeader",20).ifBlank { "bearer" },
-            (this["headers"] as? JsonObject)?.mapValues { (it.value as? JsonPrimitive)?.contentOrNull.orEmpty() }.orEmpty())
+            (this["headers"] as? JsonObject)?.mapValues { (it.value as? JsonPrimitive)?.contentOrNull.orEmpty() }.orEmpty(),
+            text("tokensPerMinute",10).toIntOrNull() ?: 0,text("requestsPerMinute",8).toIntOrNull() ?: 0)
         post("/api/admin/ai/cloud") {
             val input=call.input()
             val p=cloudAi().add(input.text("preset",40),input.cloudSettings(),input.text("apiKey",4096))
@@ -436,7 +437,7 @@ fun Application.webModule(store: Store, queries: Queries, password: String, host
             val b = store.get(call.parameters["id"]!!) ?: throw NoSuchElementException()
             val format = call.parameters["format"]!!; require(format in setOf("json","csv"))
             call.response.header("Content-Disposition", "attachment; filename=\"osint-book-${b.investigation.id}.$format\"")
-            if (format == "json") call.respondText(JsonTransfer.encode(b.copy(exportedAt = Time.nowIso(), appVersion = "0.2.1-web")),ContentType.Application.Json)
+            if (format == "json") call.respondText(JsonTransfer.encode(b.copy(exportedAt = Time.nowIso(), appVersion = "0.2.2-web")),ContentType.Application.Json)
             else {
                 val rows = b.findings.map { f -> mapOf(
                     Csv.Column.PROVIDER to f.providerId, Csv.Column.TARGET to (b.targets.firstOrNull { it.id == f.targetId }?.displayValue ?: ""),

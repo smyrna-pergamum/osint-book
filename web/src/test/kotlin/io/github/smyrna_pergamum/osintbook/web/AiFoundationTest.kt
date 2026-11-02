@@ -96,7 +96,7 @@ class AiFoundationTest {
         val out=AiEvaluator(backend).run(bundle,listOf(id),2048)
         assertEquals("Review required",out.summary)
         assertEquals(listOf(id),out.observations.single().findingIds)
-        backend.generated=false;backend.inputTokens=1800
+        backend.generated=false;backend.inputTokens=1900
         assertFailsWith<IllegalArgumentException> { AiEvaluator(backend).run(bundle,listOf(id),2048) }
         assertFalse(backend.generated)
     }
