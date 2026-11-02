@@ -1,4 +1,4 @@
-param([switch]$BundleRuntime, [string]$Version = '0.2.1')
+param([switch]$BundleRuntime, [string]$Version = '0.2.2')
 $ErrorActionPreference = 'Stop'
 if (-not $env:JAVA_HOME) {
     $javaCommand = Get-Command java -ErrorAction SilentlyContinue

@@ -21,7 +21,7 @@ data class AiRisk(val category: String, val rating: String, val explanation: Str
 @Serializable
 data class AiOutput(val summary: String, val observations: List<AiObservation>, val contradictions: List<AiObservation>,
     val missingInformation: List<String>, val verificationSteps: List<String>, val discardedReferences: Int = 0, val risks: List<AiRisk> = emptyList(),
-    val parts: Int = 1)
+    val parts: Int = 1, val skippedFindingIds: List<String> = emptyList())
 
 /** Languages offered by the interface; the model writes its text in the selected one. */
 object AiLanguages {
@@ -38,14 +38,15 @@ object AiEvidencePolicy {
     const val MAX_VALUE = 1200
     const val MAX_EXCERPT = 600
     private fun clip(s: String, max: Int) = if (s.length <= max) s else s.take(max) + " …[truncated]"
-    fun select(bundle: InvestigationBundle, ids: List<String>): List<AiEvidence> {
+    /** compact: shorter values and no excerpts, for a single finding that does not fit a small model otherwise. */
+    fun select(bundle: InvestigationBundle, ids: List<String>, compact: Boolean = false): List<AiEvidence> {
         require(ids.isNotEmpty() && ids.size <= 100 && ids.distinct().size == ids.size) { "ai_invalid_selection" }
         val findings=bundle.findings.associateBy { it.id }
         return ids.mapIndexed { index, id ->
             val f=findings[id] ?: throw IllegalArgumentException("ai_invalid_selection")
             val target=bundle.targets.firstOrNull { it.id == f.targetId } ?: throw IllegalArgumentException("ai_invalid_selection")
-            AiEvidence("F${index+1}",target.displayValue,f.providerId,f.label,clip(f.value,MAX_VALUE),f.sourceUrl,f.retrievedAt,f.publishedAt,f.reviewStatus.name,
-                bundle.evidence.filter { it.findingId==id }.map { it.excerpt }.filter { it.isNotBlank() }.distinct().take(3).map { clip(it,MAX_EXCERPT) })
+            AiEvidence("F${index+1}",target.displayValue,f.providerId,f.label,clip(f.value,if(compact) 300 else MAX_VALUE),f.sourceUrl.take(if(compact) 120 else 2000),f.retrievedAt,f.publishedAt,f.reviewStatus.name,
+                if(compact) emptyList() else bundle.evidence.filter { it.findingId==id }.map { it.excerpt }.filter { it.isNotBlank() }.distinct().take(3).map { clip(it,MAX_EXCERPT) })
         }
     }
     /** Parses model output, maps F-references back to finding IDs and drops references the model invented. */
@@ -89,6 +90,15 @@ object AiEvidencePolicy {
         .filter { group -> group.map { it.provider }.distinct().size > 1 && group.map { comparable(it.label,it.value) }.distinct().size > 1 }
         .map { group -> group.joinToString(" vs ") { "${it.ref} (${it.provider}) ${it.label}=${it.value.take(120)}" } }
     fun fingerprint(evidence: List<AiEvidence>)=digest(Json.encodeToString(evidence).toByteArray(Charsets.UTF_8))
+    /** Smaller answer for small models and tight budgets: fewer, shorter items. */
+    val COMPACT_SCHEMA: JsonObject = Json.parseToJsonElement("""{"type":"object","properties":{
+        "summary":{"type":"string","maxLength":400},
+        "observations":{"type":"array","maxItems":2,"items":{"type":"object","properties":{"title":{"type":"string","maxLength":60},"text":{"type":"string","maxLength":250},"findingIds":{"type":"array","items":{"type":"string","pattern":"^F[0-9]+$"},"minItems":1,"maxItems":4},"counterpoints":{"type":"string","maxLength":150},"confidence":{"type":"string","enum":["low","medium","high"]}},"required":["title","text","findingIds","counterpoints","confidence"]}},
+        "contradictions":{"type":"array","maxItems":2,"items":{"type":"object","properties":{"text":{"type":"string","maxLength":200},"findingIds":{"type":"array","items":{"type":"string","pattern":"^F[0-9]+$"},"maxItems":4}},"required":["text","findingIds"]}},
+        "missingInformation":{"type":"array","maxItems":2,"items":{"type":"string","maxLength":150}},
+        "verificationSteps":{"type":"array","maxItems":2,"items":{"type":"string","maxLength":150}},
+        "risks":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"object","properties":{"category":{"type":"string","enum":["identity_linkage","staleness","coverage"]},"rating":{"type":"string","enum":["low","medium","high"]},"explanation":{"type":"string","maxLength":120}},"required":["category","rating","explanation"]}}},
+        "required":["summary","observations","contradictions","missingInformation","verificationSteps","risks"]}""").jsonObject
     val SCHEMA: JsonObject = Json.parseToJsonElement("""{"type":"object","properties":{
         "summary":{"type":"string","maxLength":1200},
         "observations":{"type":"array","maxItems":8,"items":{"type":"object","properties":{"title":{"type":"string","maxLength":120},"text":{"type":"string","maxLength":600},"findingIds":{"type":"array","items":{"type":"string","pattern":"^F[0-9]+$"},"minItems":1,"maxItems":12},"counterpoints":{"type":"string","maxLength":400},"confidence":{"type":"string","enum":["low","medium","high"]}},"required":["title","text","findingIds","counterpoints","confidence"]}},
@@ -109,6 +119,10 @@ interface LocalInferenceBackend {
     fun cancel() {}
     /** Upper bound for one answer; hosted models allow more. */
     val maxOutputTokens: Int get() = AiEvaluator.MAX_OUTPUT_TOKENS
+    /** Largest input plus output for one request, e.g. a provider's tokens-per-minute limit; null when only the context limits it. */
+    val requestTokenLimit: Int? get() = null
+    /** Receives ("waiting", seconds) while the backend waits for a rate limit. */
+    fun setStatusListener(listener: (String, Int) -> Unit) {}
 }
 
 /** Builds a bounded, explicitly scoped request. The backend owns tokenization and computation. */
@@ -132,21 +146,30 @@ risks: exactly three items with category identity_linkage (risk of wrongly linki
     /** Analyzes the selection in one request when it fits; otherwise splits it in halves until each part fits the model,
      *  then merges the parts. Phases: "part" (part number), "reading" (input tokens), "writing" (output tokens), "merging". */
     suspend fun run(bundle: InvestigationBundle, ids: List<String>, contextTokens: Int, language: String = "en", onPhase: (String, Int) -> Unit = { _, _ -> }): AiOutput {
-        require(contextTokens in 512..1_000_000) { "ai_invalid_settings" }
+        require(contextTokens in 512..2_000_000) { "ai_invalid_settings" }
         AiEvidencePolicy.select(bundle,ids)
+        backend.setStatusListener(onPhase)
         // Findings about the same target and attribute stay in the same part, so differing values are still compared.
         val byId=bundle.findings.associateBy { it.id }
         val ordered=ids.sortedWith(compareBy({ byId[it]?.targetId }, { byId[it]?.label?.lowercase() }, { byId[it]?.providerId }))
-        var part=0
-        suspend fun analyze(selection: List<String>): List<AiOutput> = try {
+        var part=0;val skipped=mutableListOf<String>();var lastError:IllegalArgumentException?=null
+        /** Too large, cut off or unreadable: split in halves; a single finding gets one compact attempt and is skipped if that fails too. */
+        suspend fun analyze(selection: List<String>, compact: Boolean=false): List<AiOutput> = try {
             onPhase("part",++part)
-            listOf(single(bundle,selection,contextTokens,language,onPhase))
+            listOf(single(bundle,selection,contextTokens,language,onPhase,compact))
         } catch(e: IllegalArgumentException) {
-            if(e.message !in setOf("ai_context_overflow","ai_output_truncated") || selection.size < 2) throw e
-            analyze(selection.take(selection.size/2)) + analyze(selection.drop(selection.size/2))
+            if(e.message !in recoverable) throw e
+            lastError=e
+            when {
+                selection.size >= 2 -> analyze(selection.take(selection.size/2)) + analyze(selection.drop(selection.size/2))
+                !compact -> analyze(selection,true)
+                else -> { skipped+=selection;emptyList() }
+            }
         }
-        val outputs=analyze(ordered)
-        if(outputs.size==1) return outputs.single()
+        // Small windows get small parts from the start instead of failing first.
+        val outputs=ordered.chunked(findingsPerPart(effectiveContext(contextTokens))).flatMap { analyze(it) }
+        if(outputs.isEmpty()) throw lastError ?: IllegalArgumentException("ai_invalid_output")
+        if(outputs.size==1) return outputs.single().copy(skippedFindingIds=skipped)
         onPhase("merging",outputs.size)
         val summary=runCatching { combine(outputs.map { it.summary },contextTokens,language) }.getOrElse { outputs.joinToString(" ") { it.summary } }
         val rank=mapOf("low" to 0,"medium" to 1,"high" to 2)
@@ -155,27 +178,31 @@ risks: exactly three items with category identity_linkage (risk of wrongly linki
             outputs.flatMap { it.missingInformation }.distinct().take(8),outputs.flatMap { it.verificationSteps }.distinct().take(8),
             outputs.sumOf { it.discardedReferences },
             AiEvidencePolicy.riskCategories.mapNotNull { cat -> outputs.flatMap { it.risks }.filter { it.category==cat }.maxByOrNull { rank[it.rating] ?: 0 } },
-            outputs.size)
+            outputs.size,skipped)
     }
-    private suspend fun single(bundle: InvestigationBundle, ids: List<String>, contextTokens: Int, language: String, onPhase: (String, Int) -> Unit): AiOutput {
-        val evidence=AiEvidencePolicy.select(bundle,ids)
+    private val recoverable=setOf("ai_context_overflow","ai_output_truncated","ai_invalid_output")
+    private fun effectiveContext(contextTokens: Int)=minOf(contextTokens,backend.requestTokenLimit ?: Int.MAX_VALUE)
+    /** How many findings one request may carry: a few for 2K-4K windows, more for large ones. */
+    private fun findingsPerPart(context: Int)=when { context<=2048 -> 2; context<=4096 -> 5; context<=8192 -> 12; context<=16384 -> 25; else -> 100 }
+    private suspend fun single(bundle: InvestigationBundle, ids: List<String>, contextTokens: Int, language: String, onPhase: (String, Int) -> Unit, small: Boolean): AiOutput {
+        val evidence=AiEvidencePolicy.select(bundle,ids,small)
         // Empty fields are omitted so more findings fit in a small context window.
         val conflicts=AiEvidencePolicy.conflicts(evidence)
         val user="Investigation: ${bundle.investigation.title.take(300)}\nUNTRUSTED EVIDENCE JSON:\n"+compact.encodeToString(evidence)+
             (if (conflicts.isEmpty()) "" else "\nVALUE DIFFERENCES DETECTED BY THE APPLICATION (explain each under contradictions, citing the references; say if it is likely benign, e.g. approximate IP geolocation):\n"+conflicts.joinToString("\n") { "- $it" })+AiLanguages.reminder(language)
         val prompt=backend.render(instructions(language),user)
         val inputTokens=backend.tokenize(prompt)
-        val budget=minOf(backend.maxOutputTokens,contextTokens-inputTokens-16)
-        require(inputTokens >= 0 && budget >= MIN_OUTPUT_TOKENS) { "ai_context_overflow" }
+        val budget=minOf(backend.maxOutputTokens,effectiveContext(contextTokens)-inputTokens-16)
+        require(inputTokens >= 0 && budget >= (if(small) 192 else MIN_OUTPUT_TOKENS)) { "ai_context_overflow" }
         onPhase("reading",inputTokens)
-        return AiEvidencePolicy.validate(backend.generate(prompt,budget,AiEvidencePolicy.SCHEMA) { onPhase("writing",it) },ids)
+        return AiEvidencePolicy.validate(backend.generate(prompt,budget,if(small) AiEvidencePolicy.COMPACT_SCHEMA else AiEvidencePolicy.SCHEMA) { onPhase("writing",it) },ids)
     }
     /** One short request that joins the part summaries; the caller falls back to concatenation if it fails. */
     private suspend fun combine(summaries: List<String>, contextTokens: Int, language: String): String {
         val name=AiLanguages.names.getValue(AiLanguages.of(language))
         val prompt=backend.render("You merge partial OSINT analysis summaries. Respond only with JSON {\"summary\": \"...\"}: one summary of 3-5 sentences in $name. Use only what the partial summaries state.",
             summaries.mapIndexed { i, x -> "Part ${i+1}: $x" }.joinToString("\n")+AiLanguages.reminder(language))
-        val budget=minOf(1024,contextTokens-backend.tokenize(prompt)-16)
+        val budget=minOf(1024,effectiveContext(contextTokens)-backend.tokenize(prompt)-16)
         require(budget >= 128) { "ai_context_overflow" }
         val schema=Json.parseToJsonElement("""{"type":"object","properties":{"summary":{"type":"string","maxLength":1500}},"required":["summary"]}""").jsonObject
         val text=(Json.parseToJsonElement(backend.generate(prompt,budget,schema)).jsonObject["summary"] as? JsonPrimitive)?.contentOrNull?.trim()
@@ -270,7 +297,7 @@ class HuggingFaceHub(private val client: OkHttpClient = OkHttpClient.Builder().c
     private val infoCache=java.util.concurrent.ConcurrentHashMap<String,Pair<Long,JsonObject>>()
     private fun read(url: String): JsonElement {
         try {
-            client.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.1").build()).execute().use { response ->
+            client.newCall(Request.Builder().url(url).header("User-Agent","OSINT-Book-Web/0.2.2").build()).execute().use { response ->
                 when(response.code) { 401,403 -> throw IllegalArgumentException("ai_repository_access_denied"); 404 -> throw IllegalArgumentException("ai_repository_not_found"); 429 -> throw IllegalArgumentException("ai_hub_rate_limited") }
                 require(response.isSuccessful) { "ai_hub_unavailable" }
                 val body=response.body ?: throw IllegalArgumentException("ai_hub_unavailable")

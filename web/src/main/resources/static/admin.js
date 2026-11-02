@@ -123,13 +123,19 @@ function cloudView(){
    h('p',{class:'help'},tr('Cloud providers receive the findings a user selects for analysis. Users must confirm this for every cloud analysis, and each one is recorded in the activity log. Local servers (Ollama, LM Studio, LiteLLM) keep data on your network. API keys are stored encrypted on this server and are never shown again.')),
    h('h3',{},tr('Configured providers')),
    ...(c.providers.length?c.providers.map(p=>h('div',{class:'admin-user-row ai-installed-row'},
-    h('div',{},h('strong',{},p.name),' ',pill(p.local?tr('Local server'):tr('Cloud'),p.local?'ok':'warn'),' ',pill(tr(p.enabled?'Enabled':'Disabled'),p.enabled?'ok':''),h('small',{},`${p.baseUrl} · ${p.model} · ${p.hasKey?tr('Key configured'):tr('No key')}`)),
+    h('div',{},h('strong',{},p.name),' ',pill(p.local?tr('Local server'):tr('Cloud'),p.local?'ok':'warn'),' ',pill(tr(p.enabled?'Enabled':'Disabled'),p.enabled?'ok':''),h('small',{},`${p.baseUrl} · ${p.model} · ${p.hasKey?tr('Key configured'):tr('No key')}${p.tokensPerMinute?' · '+trf('{count} tokens/min',{count:p.tokensPerMinute}):''}${p.requestsPerMinute?' · '+trf('{count} requests/min',{count:p.requestsPerMinute}):''}`)),
     h('div',{class:'actions'},btn('Test',async()=>{notice('Testing…');await api(`/admin/ai/cloud/${p.id}/test`,'POST',{});notice('The provider answered correctly.')}),
      btn('Edit',()=>cloudDialog(c.presets.find(x=>x.id===p.preset)||c.presets.at(-1),p)),
      btn(p.enabled?'Disable':'Enable',async()=>{await api(`/admin/ai/cloud/${p.id}`,'PATCH',{enabled:!p.enabled});await load()}),
      btn('Delete',async()=>{if(!confirm(trf('Delete {name}? Its stored API key is removed.',{name:p.name})))return;await api(`/admin/ai/cloud/${p.id}`,'DELETE');await load()},'danger')))):[h('p',{class:'muted'},tr('No providers yet. Add one from the list below.'))]),
-   h('div',{class:'section-line'},h('h3',{},tr('Add a free AI API')),btn('+ Custom OpenAI-compatible API',()=>cloudDialog(c.presets.find(x=>x.id==='custom')),'primary')),h('p',{class:'muted'},tr('From the free-ai-apis list (github.com/OuterSpacee/free-ai-apis). All use the OpenAI-compatible chat API. Free tiers and model names change; check the provider before use.')),
-   h('div',{class:'cloud-presets'},c.presets.map(pr=>h('div',{class:'cloud-preset'},h('strong',{},pr.name),h('small',{},tr(pr.freeTier)||'—'),pr.local?pill(tr('Local server'),'ok'):null,h('div',{class:'actions'},btn('Add',()=>cloudDialog(pr)),pr.signupUrl?h('a',{href:pr.signupUrl,target:'_blank',rel:'noopener noreferrer'},tr('Get API key ↗')):null)))))}
+   h('div',{class:'section-line'},h('h3',{},tr('Add a free AI API')),btn('+ Custom OpenAI-compatible API',()=>cloudDialog(c.presets.find(x=>x.id==='custom')),'primary')),
+   h('p',{class:'muted'},tr('From the free-ai-apis and awesome-free-llm-apis lists. All use the OpenAI-compatible chat API. Free tiers and model names change; check the provider before use.')),
+   presetGrid(c.presets.filter(x=>!x.paid&&!x.local&&x.id!=='custom'),'Add'),
+   h('h3',{},tr('Paid AI APIs (your own API key)')),h('p',{class:'muted'},tr('Usage is billed by the provider to your own account. Enter your API key; the model list is fetched from the provider.')),
+   presetGrid(c.presets.filter(x=>x.paid),'Add API key'),
+   h('h3',{},tr('Local servers on your network')),presetGrid(c.presets.filter(x=>x.local),'Add'))}
+ function presetGrid(list,action){return h('div',{class:'cloud-presets'},list.map(pr=>h('div',{class:'cloud-preset'},h('strong',{},pr.name),h('small',{},tr(pr.freeTier)||'—'),
+  pr.local?pill(tr('Local server'),'ok'):pr.paid?pill(tr('Paid'),'warn'):null,h('div',{class:'actions'},btn(action,()=>cloudDialog(pr),pr.paid?'primary':''),pr.signupUrl?h('a',{href:pr.signupUrl,target:'_blank',rel:'noopener noreferrer'},tr('Get API key ↗')):null))))}
  /** Provider form: every connection setting is editable, models come from the provider, and the connection can be tested before saving. */
  function cloudDialog(pr,existing){
   const e=existing||{};
@@ -142,8 +148,8 @@ function cloudView(){
   const allModels=h('input',{type:'checkbox',onchange:()=>showModels()});
   let fetched=[];
   const auth=h('select',{name:'authHeader'},[['bearer','Authorization: Bearer <key>'],['api-key','api-key: <key>'],['x-api-key','x-api-key: <key>'],['none',tr('No authentication')]].map(([v,l])=>h('option',{value:v},l)));
-  auth.value=e.authHeader||(pr.keyRequired||!pr.local?'bearer':'none');
-  const headers=h('textarea',{name:'headers',rows:3,maxlength:5000,placeholder:'HTTP-Referer: http://localhost\nX-Title: OSINT-Book'},Object.entries(e.headers||{}).map(([k,v])=>`${k}: ${v}`).join('\n'));
+  auth.value=e.authHeader||pr.authHeader||(pr.keyRequired||!pr.local?'bearer':'none');
+  const headers=h('textarea',{name:'headers',rows:3,maxlength:5000,placeholder:'HTTP-Referer: http://localhost\nX-Title: OSINT-Book'},Object.entries(existing?(e.headers||{}):(pr.headers||{})).map(([k,v])=>`${k}: ${v}`).join('\n'));
   const result=h('div',{class:'cloud-result','aria-live':'polite'});
   const chatOnly=m=>!/whisper|tts|embed|guard|orpheus|audio|image|vision|moderation|rerank/i.test(m);
   function showModels(){
@@ -165,7 +171,10 @@ function cloudView(){
     h('div',{class:'form-grid'},field('Authentication',auth),
      h('label',{},h('span',{},tr('Extra HTTP headers (one per line, Name: value)')),headers),h('small',{class:'muted'},tr('Do not put secrets here; use the API key field and choose how it is sent.')),
      h('div',{class:'report-row'},field('Context window (tokens)',input('contextTokens','number',{min:2048,max:2000000,value:e.contextTokens||32768})),
-      field('Max output tokens',input('maxOutputTokens','number',{min:256,max:131072,value:e.maxOutputTokens||8192}))))),
+      field('Max output tokens',input('maxOutputTokens','number',{min:256,max:131072,value:e.maxOutputTokens||8192}))),
+     h('div',{class:'report-row'},field('Tokens per minute (0 = no limit)',input('tokensPerMinute','number',{min:0,max:100000000,value:existing?(e.tokensPerMinute||0):(pr.tokensPerMinute||0)})),
+      field('Requests per minute (0 = no limit)',input('requestsPerMinute','number',{min:0,max:100000,value:existing?(e.requestsPerMinute||0):(pr.requestsPerMinute||0)}))),
+     h('small',{class:'muted'},tr('Free tiers often limit tokens and requests per minute. Larger selections are then split into parts and sent one after another, waiting when a limit is reached.')))),
    result,
    h('div',{class:'actions'},btn('Fetch models',()=>fetchModels(false)),btn('Test connection',()=>testConnection()),h('button',{type:'submit',class:'primary'},tr('Save'))),
    pr.signupUrl?h('p',{},h('a',{href:pr.signupUrl,target:'_blank',rel:'noopener noreferrer'},tr('Get API key ↗'))):null),async d=>{
@@ -173,14 +182,14 @@ function cloudView(){
     if(existing)await api(`/admin/ai/cloud/${e.id}`,'PATCH',{...body,clearKey:d.has('clearKey')});
     else await api('/admin/ai/cloud','POST',{...body,preset:pr.id});
     $('#dialog').close();await load();notice('Saved.')});
-  const settings=()=>{const fd=new FormData(f);return {name:fd.get('name'),baseUrl:fd.get('baseUrl'),model:fd.get('model'),contextTokens:fd.get('contextTokens'),maxOutputTokens:fd.get('maxOutputTokens'),authHeader:fd.get('authHeader'),headers:parseHeaders(fd.get('headers'))}};
+  const settings=()=>{const fd=new FormData(f);return {name:fd.get('name'),baseUrl:fd.get('baseUrl'),model:fd.get('model'),contextTokens:fd.get('contextTokens'),maxOutputTokens:fd.get('maxOutputTokens'),authHeader:fd.get('authHeader'),headers:parseHeaders(fd.get('headers')),tokensPerMinute:fd.get('tokensPerMinute')||'0',requestsPerMinute:fd.get('requestsPerMinute')||'0'}};
   /** Lists the provider's current models; a model name the provider no longer offers is replaced by a suitable one. */
   async function fetchModels(quiet){
    const s=settings();
    fetched=await api('/admin/ai/cloud/models','POST',{baseUrl:s.baseUrl,apiKey:keyInput.value||'',id:e.id||'',authHeader:s.authHeader,headers:s.headers});
    const chat=fetched.filter(chatOnly);showModels();
    if(chat.length&&!fetched.includes(modelInput.value)){
-    const pick=[/gpt-oss-120b/i,/qwen3/i,/llama-3\.3/i,/gemini-2\.5-flash$/i,/mistral-small/i,/deepseek-chat/i,/llama/i].map(r=>chat.find(m=>r.test(m))).find(Boolean)||chat[0];
+    const pick=[/gpt-oss-120b/i,/claude.*haiku/i,/gpt-4\.1-mini|gpt-4o-mini|gpt-5.*mini/i,/grok.*mini/i,/^sonar$/i,/qwen3/i,/llama-3\.3/i,/gemini-2\.5-flash$/i,/mistral-small/i,/deepseek-chat/i,/llama/i].map(r=>chat.find(m=>r.test(m))).find(Boolean)||chat[0];
     notice(trf('{old} is not offered by this provider. {new} was selected; save to keep it.',{old:modelInput.value||'—',new:pick}));modelInput.value=pick;showModels();
    } else if(!quiet) notice(trf('{count} models found.',{count:chat.length}));
   }
