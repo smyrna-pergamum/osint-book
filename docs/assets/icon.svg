@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="20 20 68 68">
+  <title>OSINT-Book</title>
+  <!-- Magnifier over a small link graph, from the app's launcher icon. GPL-3.0-or-later. -->
+  <rect x="20" y="20" width="68" height="68" rx="15" fill="#E8590C"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <circle cx="50" cy="49" r="18" stroke-width="5"/>
+    <path d="M63.5,62.5L76,75" stroke-width="7"/>
+    <path d="M43,54L50,42L58,52L43,54" stroke-width="2.2" stroke-linejoin="round"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="43" cy="54" r="3.5"/>
+    <circle cx="50" cy="42" r="3.5"/>
+    <circle cx="58" cy="52" r="3.5"/>
+  </g>
+</svg>

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/icon.png" width="128" height="128" alt="OSINT-Book icon">
+</p>
+
 # OSINT-Book
 
 **A passive, source-first OSINT notebook for Android and Windows.**
