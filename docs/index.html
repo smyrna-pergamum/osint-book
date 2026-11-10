@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#140d09">
+<title>OSINT-Book · source-first OSINT notebook</title>
+<meta name="description" content="OSINT-Book is a passive, source-first OSINT notebook for Android and Windows. Every finding keeps its source link, retrieval time and evidence record.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="OSINT-Book">
+<meta property="og:description" content="A passive, source-first OSINT notebook for Android and Windows. Free and open source (GPL-3.0-or-later).">
+<link rel="canonical" href="https://smyrna-pergamum.github.io/osint-book/">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- Tokens: OSINT-Book's own colours (app Light/Dark schemes + icon) ---------- */
+:root{
+  /* dark ground = app dark theme */
+  --void:#110b08; --bg:#1a120e; --bg-2:#140d09;
+  --surface:#231a16; --surface-2:#271e1a; --surface-3:#322824;
+  --line:rgba(255,219,201,.07); --line-2:rgba(255,219,201,.12); --line-3:rgba(255,219,201,.2);
+  --fg:#fcefe8; --fg-2:#d8c2b8; --muted:#a8948a;
+  /* brand = icon orange, dark primary, primary container */
+  --brand:#e8590c; --brand-2:#ffb68f; --brand-3:#ffdbc9;
+  --brand-soft:rgba(255,182,143,.12); --brand-glow:rgba(232,89,12,.4);
+  /* signals */
+  --teal:#52d5ad; --teal-soft:rgba(82,213,173,.12); --gold:#d8c86f; --gold-soft:rgba(216,200,111,.13);
+  /* paper workspace = app light theme */
+  --paper:#fffbf8; --paper-2:#fff4ee; --paper-3:#fceee7; --paper-line:#eadfd7;
+  --ink:#34251e; --ink-2:#53433c; --ink-muted:#79685e;
+  --brand-ink:#c2410c; --teal-ink:#0d7a70; --gold-ink:#7a5a12;
+  --display:"Rajdhani","Geist",ui-sans-serif,system-ui,sans-serif;
+  --font:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --nav-h:64px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg-2);color:var(--fg);font:16px/1.6 var(--font);overflow-x:hidden;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:36px 36px;background-position:center top}
+img{max-width:100%;display:block}
+a{color:var(--brand-2);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font:inherit;color:inherit}
+code,kbd{font-family:var(--mono);font-size:.88em}
+:focus-visible{outline:2px solid var(--brand-2);outline-offset:3px;border-radius:6px}
+::selection{background:#ffd9bd;color:var(--ink)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.skip{position:absolute;left:12px;top:-60px;z-index:100;background:var(--brand-2);color:var(--ink);padding:10px 14px;border-radius:8px;font-weight:600}
+.skip:focus{top:12px}
+.shell{width:min(1180px,100%);margin:0 auto;padding:0 24px}
+.icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- Nav ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);border-bottom:1px solid var(--line);
+  background:rgba(17,11,8,.78);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.nav{display:flex;align-items:center;gap:18px;height:100%}
+.brand{display:flex;align-items:center;gap:10px;color:var(--fg);font-weight:700;letter-spacing:-.02em;font-size:18px}
+.brand:hover{text-decoration:none}
+.brand img{width:30px;height:30px;border-radius:8px;box-shadow:0 0 18px var(--brand-glow)}
+.brand b{color:var(--brand-2);font-weight:700}
+.nav-links{margin-left:auto;display:flex;align-items:center;gap:22px;font-size:14px}
+.nav-links a{color:var(--fg-2)}
+.nav-links a:hover{color:var(--fg);text-decoration:none}
+.nav-tools{display:flex;align-items:center;gap:8px}
+.pill-btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);
+  background:rgba(255,255,255,.02);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.pill-btn:hover{border-color:var(--line-3);text-decoration:none;background:rgba(255,255,255,.04)}
+.pill-btn .mono{font-family:var(--mono);font-weight:500;color:var(--fg-2)}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:8px;border:0;
+  background:var(--fg);color:#1a120e;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 0 0 1px rgba(255,255,255,.4) inset}
+.btn-primary:hover{background:#fff;text-decoration:none}
+.btn-ghost{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);
+  background:transparent;color:var(--fg);font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-ghost:hover{border-color:var(--brand-2);text-decoration:none}
+.lang{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;height:38px}
+.lang button{border:0;background:transparent;padding:0 10px;font:500 12px var(--mono);color:var(--muted);cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand-2)}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;padding-bottom:56px;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(40% 46% at 50% 38%,rgba(232,89,12,.13),transparent 70%),radial-gradient(30% 40% at 78% 55%,rgba(82,213,173,.06),transparent 70%)}
+.hero-graph{position:relative;height:clamp(320px,60vh,560px)}
+.hero-graph svg{position:absolute;inset:0;width:100%;height:100%}
+.hero-title{position:absolute;left:max(24px,calc((100% - 1180px)/2 + 64px));bottom:6px;margin:0;z-index:2;
+  font:700 clamp(2.6rem,6.2vw,5.2rem)/.86 var(--display);letter-spacing:0;color:#fff6f1;
+  text-shadow:0 0 2px rgba(255,255,255,.86),0 0 18px rgba(255,182,143,.36),0 0 48px rgba(82,213,173,.14),0 18px 52px rgba(0,0,0,.6)}
+.hero-sub{margin:14px 0 0;color:var(--fg-2);font-size:17px;max-width:52ch}
+.ai-pill{display:inline-flex;align-items:center;gap:10px;margin-top:16px;padding:5px 12px 5px 5px;border:1px solid rgba(255,182,143,.35);border-radius:999px;background:linear-gradient(90deg,rgba(232,89,12,.16),rgba(232,89,12,.04));color:var(--fg);font-size:13.5px;line-height:1.35}
+.ai-pill:hover{border-color:var(--brand-2);text-decoration:none}
+.ai-pill .tag{flex:none;padding:3px 9px;border-radius:999px;background:var(--brand);color:#fff;font:600 11px var(--mono);letter-spacing:.04em;box-shadow:0 0 14px var(--brand-glow)}
+.ai-pill .icon{width:15px;height:15px;color:var(--brand-2)}
+.hero-actions{display:grid;grid-template-columns:1.05fr 1fr auto;gap:40px;margin-top:34px;align-items:start}
+.hero-col{min-width:0}
+.hero-col h2{font-size:15px;font-weight:600;margin:0 0 10px;color:var(--fg)}
+.hero-col p{margin:0;color:var(--fg-2);font-size:14px;line-height:1.55}
+.cmd{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 6px 0 14px;border:1px solid var(--line-2);border-radius:10px;
+  background:rgba(20,13,9,.85);font:500 14px var(--mono);color:var(--fg);overflow:hidden}
+.cmd .k{color:var(--teal)} .cmd .s{color:var(--brand-2)} .cmd .d{color:var(--muted)}
+.cmd code{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:inherit}
+.copy{display:grid;place-items:center;width:32px;height:32px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;flex:none}
+.copy:hover{color:var(--fg);border-color:var(--line-2)}
+.copy.ok{color:var(--teal)}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.facts{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:14px;font:500 12px var(--mono);color:var(--muted)}
+.facts span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal);margin-right:7px;vertical-align:1px}
+.facts span.k::before{background:var(--gold)}
+.facts span.o::before{background:var(--brand)}
+.link-arrow{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-weight:600;color:var(--brand-2)}
+.hero-side{display:flex;flex-direction:column;align-items:flex-end;gap:8px;font:500 12px var(--mono);color:var(--muted);text-align:right}
+.badge-box{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--brand);border-radius:10px;box-shadow:0 0 18px var(--brand-glow)}
+.badge-box img{width:28px;height:28px;border-radius:6px}
+
+/* graph (SVG) */
+.g-edge{fill:none;stroke:rgba(255,219,201,.22);stroke-width:1.3;stroke-dasharray:5 7}
+.g-halo{opacity:.55}
+.g-node{fill:#1d1410;stroke-width:1.6}
+.g-node.free{stroke:var(--teal)} .g-node.key{stroke:var(--gold)} .g-node.opt{stroke:#9fd8c6} .g-node.target{stroke:var(--brand-2);fill:#2a1810}
+.g-ico{color:var(--fg-2);fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round} .g-ico.target{color:#fff3ec}
+.g-label{font:600 13px var(--mono);fill:var(--fg-2);text-anchor:middle}
+.g-sub{font:500 10.5px var(--mono);fill:var(--muted);text-anchor:middle;letter-spacing:.02em}
+.g-ring{fill:none;stroke:var(--brand-2);stroke-opacity:.35;stroke-width:1.2}
+.g-pkt-out{fill:var(--brand-2)} .g-pkt-in{fill:var(--teal)}
+@media (max-width:760px){.g-label{font-size:18px}.g-sub{display:none}}
+
+/* ---------- Story (aperture) ---------- */
+.story{position:relative;height:640vh}
+.stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;background:var(--bg-2)}
+.stage-dark{position:absolute;inset:0}
+.stage-dark::before{content:"";position:absolute;inset:0;background:radial-gradient(42% 48% at 50% 50%,rgba(232,89,12,.12),transparent 70%)}
+.stage-dark svg{position:absolute;inset:var(--nav-h) 0 0 0;width:100%;height:calc(100% - var(--nav-h))}
+.stage-hint{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);font:500 12px var(--mono);color:var(--muted);letter-spacing:.12em;text-transform:uppercase;transition:opacity .3s}
+.stage-close{position:absolute;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none;opacity:0}
+.stage-close h2{margin:0;font:700 clamp(2.4rem,6vw,5rem)/.9 var(--display);color:#fff6f1;
+  text-shadow:0 0 2px rgba(255,255,255,.9),0 0 22px rgba(255,182,143,.45),0 0 58px rgba(82,213,173,.2),0 18px 52px rgba(0,0,0,.6)}
+.stage-close p{margin:16px 0 0;font:500 13px var(--mono);color:var(--fg-2);letter-spacing:.06em}
+.stage-light{position:absolute;inset:0;background:var(--paper);color:var(--ink);clip-path:circle(0px at 50% 50%);
+  background-image:radial-gradient(38% 44% at 50% 55%,rgba(255,219,201,.55),transparent 72%),linear-gradient(rgba(52,37,30,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(52,37,30,.055) 1px,transparent 1px);
+  background-size:100% 100%,34px 34px,34px 34px}
+.story-head{position:absolute;left:0;right:0;top:calc(var(--nav-h) + 18px);height:120px;text-align:center;padding:0 16px}
+.story-head h3{position:absolute;left:0;right:0;top:0;margin:0 auto;max-width:880px;padding:0 16px;
+  font:700 clamp(1.9rem,4.2vw,3.5rem)/.98 var(--display);color:var(--ink);text-wrap:balance;
+  text-shadow:0 1px 0 rgba(255,255,255,.9),0 14px 34px rgba(58,33,15,.12);
+  opacity:0;filter:blur(8px);transform:translateY(10px);transition:opacity .6s var(--ease),filter .6s var(--ease),transform .6s var(--ease)}
+.story-head h3.on{opacity:1;filter:none;transform:none}
+.board-wrap{position:absolute;left:0;right:0;bottom:56px;top:calc(var(--nav-h) + 140px)}
+.board{position:absolute;left:50%;top:50%;transform-origin:0 0}
+.rail{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:6px;font:500 11px var(--mono);color:var(--ink-muted);white-space:nowrap}
+.rail span{padding:4px 9px;border:1px solid var(--paper-line);border-radius:999px;background:rgba(255,255,255,.7);transition:all .3s}
+.rail span.on{color:var(--brand-ink);border-color:#f0b48f;background:#fff1e7}
+
+/* board elements (paper cards) */
+.b-el{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform,opacity}
+.pc{background:#fff;border:1px solid var(--paper-line);border-radius:14px;box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 14px 34px -14px rgba(58,33,15,.22)}
+.pc-pad{padding:16px 18px}
+.mlabel{font:500 11px var(--mono);color:var(--ink-muted);letter-spacing:.02em}
+.chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:999px;font:600 10px var(--mono);border:1px solid var(--paper-line);color:var(--ink-2);background:var(--paper-2);white-space:nowrap}
+.chip.free{color:var(--teal-ink);background:#e7f5f0;border-color:#bfe3d7}
+.chip.key{color:var(--gold-ink);background:#fbf3d9;border-color:#ecd99a}
+.chip.opt{color:#3c6f63;background:#eef6f3;border-color:#cfe5dd}
+.chip.brand{color:var(--brand-ink);background:#fff1e7;border-color:#f3c3a3}
+.chip.live::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tcard-top{display:flex;justify-content:space-between;align-items:center}
+.tcard h4,.nb h4,.rep h4{margin:6px 0 12px;font:600 24px/1.1 var(--font);letter-spacing:-.02em;color:#21160f}
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stats3 div{background:#fff7f2;border:1px solid #f2e2d8;border-radius:8px;padding:6px 8px}
+.stats3 b{display:block;font:600 12px var(--font);color:var(--ink);margin-top:2px}
+.srow{display:flex;align-items:center;gap:8px;height:32px;border-top:1px dashed #efe3da;font:500 12px var(--mono);color:var(--ink-2)}
+.srow .box{width:16px;height:16px;border-radius:4px;border:1.5px solid #d9c8bc;display:grid;place-items:center;flex:none;transition:all .25s}
+.srow .box svg{width:12px;height:12px;stroke:#fff;stroke-width:2.4;fill:none;opacity:0;transition:opacity .2s}
+.srow.on .box{background:var(--teal-ink);border-color:var(--teal-ink)}
+.srow.on .box svg{opacity:1}
+.srow .to{color:var(--ink-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srcc{padding:12px 14px;height:100%}
+.srcc .h{display:flex;justify-content:space-between;align-items:center;gap:6px;font:600 12px var(--mono);color:#21160f}
+.srcc .h span{display:flex;align-items:center;gap:6px}
+.srcc .h .icon{width:15px;height:15px;color:var(--brand-ink)}
+.srcc .slot{margin-top:10px;height:56px;border:1px dashed #e3cfc2;border-radius:8px;padding:6px 8px;font:500 10.5px var(--mono);color:var(--ink-muted)}
+.board.narrow .srcc .slot{display:none}
+.board.narrow .srcc{padding:9px 10px}
+.board.narrow .srcc .h .chip{display:none}
+.fchip{display:grid;grid-template-columns:6px 40px 1fr auto;align-items:center;gap:8px;height:100%;padding:0 10px;border-radius:9px;
+  background:#fff;border:1px solid #e9dcd2;box-shadow:0 6px 16px -10px rgba(58,33,15,.35);font:500 11.5px var(--mono);color:var(--ink)}
+.fchip i{width:6px;height:18px;border-radius:999px;background:linear-gradient(var(--c,#e8590c),rgba(232,89,12,.25))}
+.fchip b{font-weight:600;color:var(--brand-ink)}
+.fchip .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fchip .v small{display:block;font-size:9.5px;color:var(--ink-muted)}
+.fchip.gap{border-style:dashed;background:#fffaf3}
+.status{font:600 9.5px var(--mono);color:var(--ink-muted);border:1px solid var(--paper-line);border-radius:999px;padding:2px 6px;white-space:nowrap}
+.nb .bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.obs{height:100%;padding:12px 14px;border-left:4px solid var(--c);border-radius:12px}
+.obs .h{display:flex;align-items:center;gap:7px;font:600 13px var(--font);color:var(--c2)}
+.obs .h .icon{width:16px;height:16px}
+.obs p{margin:6px 0 6px;font-size:13.5px;line-height:1.4;color:var(--ink)}
+.obs .based{font:500 10.5px var(--mono);color:var(--ink-muted)}
+.obs.info{--c:var(--teal-ink);--c2:var(--teal-ink);background:#f3fbf8}
+.obs.att{--c:var(--brand);--c2:var(--brand-ink);background:#fff6ee}
+.obs.miss{--c:#c9a227;--c2:var(--gold-ink);background:#fffaee}
+.board.narrow .obs p{font-size:12.5px;margin:4px 0}
+.verdict{font:600 11px var(--mono);color:var(--ink-2);background:#fff;border:1px dashed #dcc6b8;border-radius:999px;padding:7px 12px;white-space:nowrap}
+.links path{fill:none;stroke:#e8590c;stroke-width:1.4;stroke-dasharray:4 5}
+.rep .rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;height:36px;border-top:1px solid #f1e5dd;font-size:13.5px}
+.rep .rrow .n{font:500 11px var(--mono);color:var(--ink-muted);width:20px}
+.rep .rrow span:nth-child(2){flex:1}
+.rep .fmt{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.commit{display:flex;align-items:center;gap:14px;height:100%;padding:12px 16px;background:linear-gradient(100deg,#eaf7f2,#fff 60%);border-color:#cfe8de}
+.commit .ok{width:34px;height:34px;border-radius:9px;background:#d9f1e8;display:grid;place-items:center;color:var(--teal-ink);flex:none}
+.commit .t{flex:1;min-width:0}
+.commit .t b{display:block;font-size:17px;letter-spacing:-.01em}
+.commit .t small{display:block;font:500 11px var(--mono);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.route{display:flex;flex-direction:column;gap:6px;align-items:flex-end;padding:8px 10px;border:1px solid var(--paper-line);border-radius:8px;background:#fff;font:600 9.5px var(--mono);color:var(--ink-muted)}
+.route .dots{display:flex;gap:5px}
+.route .dots i{width:8px;height:8px;border-radius:50%;background:#efe3da;transition:background .2s}
+.route .dots i.on{background:var(--teal-ink)}
+.board.narrow .route{display:none}
+
+/* reduced-motion story: static frames */
+.story.static{height:auto;padding:24px 0 8px}
+.story.static .stage{position:relative;height:auto;overflow:visible;background:transparent}
+.story.static .stage-dark{display:none}
+.frames{display:grid;gap:20px}
+.frame{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line-2);background:var(--paper);color:var(--ink);
+  background-image:linear-gradient(rgba(52,37,30,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(52,37,30,.055) 1px,transparent 1px);background-size:34px 34px;padding:28px 16px 20px}
+.frame h3{margin:0 0 16px;text-align:center;font:700 clamp(1.7rem,3.6vw,2.8rem)/1 var(--display);color:var(--ink)}
+.frame .fb{position:relative;margin:0 auto}
+.frame .fb .board{left:0;top:0}
+
+/* ---------- Generic sections ---------- */
+.sec{padding:96px 0;scroll-margin-top:var(--nav-h)}
+.sec-head{display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:end;margin-bottom:40px}
+.sec-head h2{margin:0;font:700 clamp(2.1rem,5vw,4rem)/.96 var(--display);color:var(--fg);text-wrap:balance}
+.sec-head p{margin:0;color:var(--fg-2);max-width:48ch}
+.eyebrow{display:block;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--brand-2);margin-bottom:14px}
+.reveal{opacity:0;filter:blur(10px);transform:translateY(18px);transition:opacity 1.4s var(--ease),filter 1.4s var(--ease),transform 1.4s var(--ease)}
+.reveal.in{opacity:1;filter:none;transform:none}
+
+/* strip */
+.strip{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(17,11,8,.6)}
+.strip .shell{display:flex;align-items:center;gap:28px;min-height:76px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
+.strip .lab{font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);max-width:260px}
+.strip ul{display:flex;flex-wrap:wrap;gap:10px 26px;list-style:none;margin:0 0 0 auto;padding:0;font:500 13.5px var(--mono);color:var(--fg-2)}
+.strip li::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c,var(--teal));margin-right:8px;vertical-align:2px}
+
+/* panels */
+.panel{border:1px solid var(--line-2);border-radius:16px;background:linear-gradient(180deg,rgba(35,26,22,.92),rgba(20,13,9,.92));overflow:hidden}
+.panel-foot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 22px;border-top:1px solid var(--line);font:500 12px var(--mono);color:var(--muted)}
+.legend{display:flex;gap:18px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);margin-right:7px}
+
+/* editions switcher */
+.tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line-2);border-radius:10px;background:rgba(17,11,8,.7)}
+.tabs button{height:36px;padding:0 14px;border:0;border-radius:7px;background:transparent;color:var(--fg-2);font-weight:600;font-size:14px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--fg);color:#1a120e}
+.ed-body{display:grid;grid-template-columns:340px 1fr;gap:0}
+.ed-text{padding:26px 24px;border-right:1px solid var(--line)}
+.ed-text h3{margin:0 0 8px;font:600 22px/1.2 var(--font);letter-spacing:-.02em}
+.ed-text p{margin:0 0 14px;color:var(--fg-2);font-size:14.5px}
+.ed-text ul{margin:0;padding:0;list-style:none;display:grid;gap:9px;font-size:14px;color:var(--fg-2)}
+.ed-text li{display:grid;grid-template-columns:16px 1fr;gap:8px}
+.ed-text li .icon{width:16px;height:16px;color:var(--teal);margin-top:3px}
+.diagram{position:relative;aspect-ratio:640/380;margin:22px;border:1px solid var(--line);border-radius:12px;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:24px 24px;background-color:rgba(10,6,4,.4)}
+.diagram svg{position:absolute;inset:0;width:100%;height:100%}
+.diagram .ln{fill:none;stroke-width:1.5;stroke-dasharray:5 6;animation:dash 1.4s linear infinite}
+.diagram .ln.o{stroke:var(--brand-2)} .diagram .ln.t{stroke:var(--teal)} .diagram .ln.g{stroke:var(--gold)}
+@keyframes dash{to{stroke-dashoffset:-22}}
+.dnode{position:absolute;transform:translate(-50%,-50%);min-width:128px;padding:8px 11px;border-radius:9px;border:1px solid var(--line-2);background:#1c130f;font-size:12px;box-shadow:0 10px 30px -12px #000}
+.dnode small{display:block;font:500 9.5px var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.dnode small::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--c,var(--teal));margin-right:5px;vertical-align:1px}
+.dnode b{display:block;font-size:13.5px;margin:2px 0 1px}
+.dnode span{font:500 10.5px var(--mono);color:var(--fg-2)}
+.dnode b,.dnode span{white-space:nowrap}
+.dnode.hub{border-color:var(--brand);box-shadow:0 0 0 4px rgba(232,89,12,.12),0 0 28px var(--brand-glow)}
+.shots{display:flex;gap:12px;padding:0 22px 22px;overflow-x:auto;scrollbar-width:thin}
+.shots figure{margin:0;flex:none}
+.shots img{height:220px;width:auto;border-radius:10px;border:1px solid var(--line-2)}
+.shots figcaption{font:500 11px var(--mono);color:var(--muted);margin-top:6px}
+
+/* AI blocks */
+.ai-wrap{padding:30px 22px 26px}
+.ai-grid{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:18px;align-items:stretch}
+.blk{position:relative;border:1px solid var(--bc,var(--line-3));border-radius:12px;padding:16px 16px 14px;background:var(--bb,rgba(255,255,255,.02));transition:transform .3s var(--ease),box-shadow .3s}
+.blk::before,.blk::after{content:"";position:absolute;top:-9px;width:30px;height:9px;border:1px solid var(--bc,var(--line-3));border-bottom:0;border-radius:6px 6px 0 0;background:var(--bg-2)}
+.blk::before{left:22%}.blk::after{right:22%}
+.blk:hover{transform:translateY(-3px);box-shadow:0 14px 34px -14px var(--bc)}
+.blk h4{margin:0 0 4px;font:600 15px var(--font);text-align:center}
+.blk p{margin:0;text-align:center;font:500 11.5px/1.6 var(--mono);color:var(--fg-2)}
+.blk.local{--bc:rgba(82,213,173,.55);--bb:rgba(82,213,173,.05)}
+.blk.cloud{--bc:rgba(216,200,111,.55);--bb:rgba(216,200,111,.05)}
+.blk.queue{--bc:rgba(255,182,143,.6);--bb:linear-gradient(180deg,rgba(232,89,12,.12),rgba(232,89,12,.03));display:flex;flex-direction:column;justify-content:center;padding:26px 18px}
+.blk.queue h4{font:700 26px/1 var(--display);letter-spacing:.01em}
+.blk.in{--bc:rgba(255,219,201,.3)}
+.blk.out{--bc:rgba(82,213,173,.4);padding:14px 10px 12px}
+.blk.out h4{font-size:13px}
+.ai-top{display:grid;grid-template-columns:repeat(2,minmax(0,260px));justify-content:center;gap:18px;margin-bottom:26px}
+.ai-out{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:26px}
+.ai-note{margin:22px 0 0;text-align:center;font:500 12px var(--mono);color:var(--muted)}
+
+/* catalog */
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.search{flex:1;min-width:240px;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border:1px solid var(--line-2);border-radius:10px;background:rgba(17,11,8,.8);color:var(--muted)}
+.search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:14px;outline:none}
+.search:focus-within{border-color:var(--brand-2)}
+.sel{display:flex;align-items:center;gap:8px;height:44px;padding:0 10px 0 12px;border:1px solid var(--line-2);border-radius:10px;background:rgba(17,11,8,.8)}
+.sel span{font:500 10.5px var(--mono);color:var(--muted)}
+.sel select{border:0;background:transparent;color:var(--fg);font:600 13px var(--font);outline:none;cursor:pointer}
+.sel select option{background:#1a120e}
+.sel:focus-within{border-color:var(--brand-2)}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:780px}
+th{text-align:left;font:500 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:14px 16px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:hover td{background:rgba(255,182,143,.03)}
+td .nm{font-weight:600;color:var(--fg)}
+td .id{display:inline-block;margin-top:4px;font:500 11px var(--mono);color:var(--muted)}
+.tp{display:inline-flex;margin:0 4px 4px 0;padding:2px 8px;border:1px solid var(--line-2);border-radius:999px;font:500 11px var(--mono);color:var(--fg-2)}
+.auth{display:inline-flex;align-items:center;gap:7px;font:500 12.5px var(--mono);white-space:nowrap}
+.auth::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+td.q{font:500 12.5px var(--mono);color:var(--fg-2)}
+td.nt{color:var(--fg-2);font-size:13.5px}
+.pager{display:flex;align-items:center;gap:6px}
+.pager button{min-width:30px;height:30px;border:1px solid var(--line-2);border-radius:7px;background:transparent;color:var(--fg-2);font:500 12px var(--mono);cursor:pointer}
+.pager button[aria-current="page"]{border-color:var(--brand-2);color:var(--brand-2)}
+.pager button:disabled{opacity:.35;cursor:default}
+details.left-out{margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:rgba(17,11,8,.5)}
+details.left-out summary{cursor:pointer;font-weight:600}
+details.left-out ul{margin:12px 0 0;padding-left:18px;color:var(--fg-2);font-size:14px}
+
+/* scope */
+.scope{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.scope .panel{padding:26px 26px 22px}
+.scope h3{display:flex;align-items:center;gap:10px;margin:0 0 16px;font:600 19px var(--font)}
+.scope h3 i{width:11px;height:11px;border-radius:3px;background:var(--c)}
+.scope ul{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.scope li{padding-left:16px;border-left:2px solid var(--line-2);color:var(--fg-2);font-size:14.5px}
+.scope li b{color:var(--fg);font-weight:600}
+
+/* terminal */
+.term{max-width:960px;margin:0 auto;border:1px solid var(--line-2);border-radius:14px;background:#0d0806;overflow:hidden;box-shadow:0 40px 80px -40px #000}
+.term-bar{display:flex;align-items:center;gap:12px;height:48px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);background:#150e0a}
+.lights{display:flex;gap:7px}.lights i{width:11px;height:11px;border-radius:50%;background:#e5534b}.lights i:nth-child(2){background:#e0a84a}.lights i:nth-child(3){background:#3fb68b}
+.term-tabs{display:flex;gap:4px}
+.term-tabs button{height:30px;padding:0 11px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--muted);font:500 12px var(--mono);cursor:pointer}
+.term-tabs button[aria-selected="true"]{background:var(--surface-3);color:var(--fg);border-color:var(--line-2)}
+.term-meta{margin-left:auto;display:flex;align-items:center;gap:12px;font:500 11px var(--mono);color:var(--muted)}
+.term-copy{height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:6px;background:transparent;color:var(--fg-2);font:600 10.5px var(--mono);letter-spacing:.08em;cursor:pointer}
+.term-copy.ok{color:var(--teal);border-color:rgba(82,213,173,.5)}
+.term pre{margin:0;padding:24px 28px;font:500 13.5px/1.85 var(--mono);color:var(--fg-2);overflow-x:auto;white-space:pre}
+.term .c{color:#8a766c}.term .p{color:var(--teal);font-weight:600}.term .cmdw{color:var(--fg)}.term .f{color:var(--brand-2)}.term .h{color:var(--gold)}.term .o{color:var(--muted)}.term .okk{color:var(--teal)}
+.term-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--line);font:500 11.5px var(--mono);color:var(--muted)}
+.term-foot .live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);margin-right:8px;box-shadow:0 0 10px var(--teal)}
+.dl{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:960px;margin:0 auto 22px}
+.dl a{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--line-2);border-radius:12px;background:rgba(35,26,22,.7);color:var(--fg)}
+.dl a:hover{border-color:var(--brand-2);text-decoration:none}
+.dl .ic{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;background:var(--brand-soft);color:var(--brand-2);flex:none}
+.dl b{display:block}.dl small{font:500 11.5px var(--mono);color:var(--muted)}
+.dl .go{margin-left:auto;color:var(--muted)}
+.status-note{max-width:960px;margin:20px auto 0;padding:14px 18px;border:1px solid rgba(216,200,111,.35);border-radius:12px;background:rgba(216,200,111,.06);font-size:14px;color:var(--fg-2)}
+.status-note b{color:var(--gold)}
+
+/* footer */
+.foot{border-top:1px solid var(--line);padding:56px 0 40px;background:linear-gradient(180deg,rgba(232,89,12,.05),transparent 240px)}
+.foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:20px}
+.foot h2{margin:0 0 10px;font:600 15px var(--font);color:var(--fg-2)}
+.flist{border:1px solid var(--line-2);border-radius:12px;overflow:hidden}
+.flist a{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-top:1px solid var(--line);color:var(--fg);font-weight:600;font-size:14px}
+.flist a:first-child{border-top:0}
+.flist a:hover{background:rgba(255,182,143,.05);text-decoration:none}
+.flist .icon{width:15px;height:15px;color:var(--brand-2)}
+.foot-about p{margin:0 0 14px;color:var(--fg-2);font-size:14px;max-width:44ch}
+.langs{display:flex;flex-wrap:wrap;gap:6px}
+.langs span{padding:3px 9px;border:1px solid var(--line-2);border-radius:999px;font:500 12px var(--font);color:var(--fg-2)}
+.foot-bottom{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:40px;padding-top:20px;border-top:1px solid var(--line);font:500 12px var(--mono);color:var(--muted)}
+.foot-bottom .brand{font-size:16px}
+.ver{padding:2px 7px;border:1px solid var(--line-2);border-radius:6px;font:500 11px var(--mono);color:var(--fg-2)}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav-links a.opt{display:none}
+  .hero-actions{grid-template-columns:1fr 1fr}
+  .hero-side{display:none}
+  .ai-grid{grid-template-columns:1fr;gap:26px}
+  .ai-out{grid-template-columns:repeat(3,1fr);row-gap:24px}
+  .ed-body{grid-template-columns:1fr}
+  .ed-text{border-right:0;border-bottom:1px solid var(--line)}
+}
+@media (max-width:760px){
+  .shell{padding:0 16px}
+  .nav-links{display:none}
+  .nav-tools{margin-left:auto}
+  .nav-tools .pill-btn{display:none}
+  .hero-graph{height:auto}
+  .hero-graph svg{position:relative;display:block;height:44vh;min-height:280px}
+  .hero-title{position:relative;left:auto;bottom:auto;padding:0 16px;margin-top:-4px}
+  .cmd .arr,.cmd .s{display:none}
+  .hero-sub{padding:0 16px}
+  .ai-pill{margin:14px 16px 0;border-radius:14px}
+  .hero-actions{grid-template-columns:1fr;gap:28px}
+  .sec{padding:72px 0}
+  .sec-head{grid-template-columns:1fr;gap:16px}
+  .strip ul{margin-left:0}
+  .ai-top{grid-template-columns:1fr}
+  .ai-out{grid-template-columns:repeat(2,1fr)}
+  .diagram{margin:14px;aspect-ratio:auto;height:440px}
+  .scope{grid-template-columns:1fr}
+  .dl{grid-template-columns:1fr}
+  .foot-grid{grid-template-columns:1fr}
+  .term pre{padding:18px;font-size:12px}
+  .term-meta .who{display:none}
+  .lights{display:none}
+  .dnode{min-width:0;max-width:47%;padding:6px 8px}
+  .dnode b{white-space:normal;font-size:12.5px;line-height:1.25}
+  .dnode span{display:none}
+  .story-head{height:110px}
+  .board-wrap{top:calc(var(--nav-h) + 118px);bottom:46px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;filter:none;transform:none;transition:none}
+  .diagram .ln{animation:none}
+  .blk{transition:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+<!-- icon sprite (single-stroke line icons) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="i-dns" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/><path d="M8 7h.01M8 17h.01"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.4 1.5-2 2.5-2s1.9.6 2.5 2M14 10h4M14 14h3"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-q" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5v.4M12 17h.01"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 8v8M18 10c0 4-6 3-10 6"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="shell nav">
+    <a class="brand" href="#top" aria-label="OSINT-Book home"><img src="assets/icon.svg" alt="" width="30" height="30"><span>osint<b>book</b></span></a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#how" data-i18n="nav.how">How it works</a>
+      <a href="#ai" data-i18n="nav.ai">AI analysis</a>
+      <a href="#editions" class="opt" data-i18n="nav.editions">Editions</a>
+      <a href="#sources" data-i18n="nav.sources">Sources</a>
+      <a href="#install" class="opt" data-i18n="nav.install">Install</a>
+    </nav>
+    <div class="nav-tools">
+      <a class="pill-btn" href="https://github.com/smyrna-pergamum/osint-book"><svg class="icon"><use href="#i-git"/></svg>GitHub <span class="mono">· web-v0.2.2</span></a>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="tr" aria-pressed="false">TR</button>
+      </div>
+      <a class="btn-primary" href="#install" data-i18n="nav.download">Download</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<!-- ===== Hero ===== -->
+<section class="hero" id="top" aria-labelledby="hero-title">
+  <div class="hero-graph">
+    <svg id="heroGraph" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sample: one target (example.org) and the public sources it is sent to"></svg>
+    <h1 class="hero-title" id="hero-title" data-i18n="hero.title">Source-first<br>OSINT notebook</h1>
+  </div>
+  <div class="shell">
+    <p class="hero-sub" data-i18n="hero.sub">Research domains, URLs, IPs, organisations, repositories, packages and file hashes with public sources you pick yourself. Rule-based analysis, and optional AI analysis, turn the findings into observations that cite their evidence.</p>
+    <a class="ai-pill" href="#ai"><span class="tag" data-i18n="hero.ai.tag">AI analysis</span><span data-i18n="hero.ai">Local models offline, or cloud APIs after you confirm. Windows edition.</span><svg class="icon"><use href="#i-arrow"/></svg></a>
+    <div class="hero-actions">
+      <div class="hero-col">
+        <h2 data-i18n="hero.win.h">Windows edition</h2>
+        <div class="cmd"><code><span class="d">&gt;</span> <span class="k">.\Start-Local.bat</span> <span class="d arr">→</span> <span class="s">http://localhost:8080</span></code>
+          <button class="copy" type="button" data-copy=".\Start-Local.bat" aria-label="Copy command"><svg class="icon"><use href="#i-copy"/></svg></button></div>
+        <div class="row">
+          <a class="btn-primary" href="https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.2"><svg class="icon"><use href="#i-download"/></svg><span data-i18n="hero.win.btn">Windows ZIP · 0.2.2</span></a>
+          <a class="btn-ghost" href="https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0"><svg class="icon"><use href="#i-phone"/></svg><span data-i18n="hero.and.btn">Android APK · 0.1.0</span></a>
+        </div>
+        <a class="link-arrow" href="#how"><span data-i18n="hero.more">Follow one target</span> <svg class="icon"><use href="#i-down"/></svg></a>
+      </div>
+      <div class="hero-col">
+        <h2 data-i18n="hero.and.h">Same sources, same file format</h2>
+        <p data-i18n="hero.and.p"><b>One person on a phone, or a team on a local network.</b> Both editions share the sources, the rule-based analysis and a versioned JSON exchange format. No account, no ads, no tracking, no telemetry.</p>
+        <div class="facts"><span>GPL-3.0-or-later</span><span>Android 8.0+</span><span class="o">Windows 10/11</span><span class="k" data-i18n="hero.langs">9 languages</span><span class="o" data-i18n="hero.fact.ai">AI analysis (Windows)</span></div>
+      </div>
+      <div class="hero-side">
+        <span data-i18n="hero.oss">Free and open source</span>
+        <a class="badge-box" href="https://github.com/smyrna-pergamum/osint-book" aria-label="OSINT-Book on GitHub"><img src="assets/icon.svg" alt=""></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Story: aperture ===== -->
+<section class="story" id="how" aria-labelledby="story-title">
+  <h2 class="sr-only" id="story-title" data-i18n="story.sr">How OSINT-Book works, in four steps</h2>
+  <ol class="sr-only">
+    <li data-i18n="story.sr1">You add one target and choose the sources. Before anything is sent, the app shows which value goes to which service.</li>
+    <li data-i18n="story.sr2">Every finding keeps its source link, retrieval time, an evidence excerpt with SHA-256 and your review status.</li>
+    <li data-i18n="story.sr3">Rule-based analysis turns findings into plain sentences marked Info, Attention or Missing, without any network request and without an overall risk score.</li>
+    <li data-i18n="story.sr4">Reports (PDF, HTML, JSON, CSV) keep every claim linked to its source.</li>
+  </ol>
+  <div class="stage" id="stage">
+    <div class="stage-dark" aria-hidden="true">
+      <svg id="stageGraph" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="stage-hint" id="stageHint" data-i18n="story.hint">scroll · follow one target</div>
+      <div class="stage-close" id="stageClose"><div><h2 data-i18n="story.close">Every claim,<br>back to its source.</h2><p data-i18n="story.closeSub">passive · source-first · no verdict</p></div></div>
+    </div>
+    <div class="stage-light" id="stageLight" aria-hidden="true">
+      <div class="story-head" id="storyHead"></div>
+      <div class="board-wrap" id="boardWrap"></div>
+      <div class="rail" id="rail"></div>
+    </div>
+  </div>
+</section>
+
+<!-- strip -->
+<div class="strip">
+  <div class="shell">
+    <span class="lab" data-i18n="strip.lab">Key-free sources that work out of the box</span>
+    <ul>
+      <li>Google Public DNS</li><li>RDAP · IANA</li><li style="--c:var(--brand-2)">Wayback Machine</li><li>GitHub</li><li style="--c:var(--gold)">OSV.dev</li><li>urlscan.io</li><li>Wikipedia · Wikidata</li><li style="--c:var(--brand-2)">OpenStreetMap</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===== AI ===== -->
+<section class="sec" id="ai" aria-labelledby="ai-title">
+  <div class="shell">
+    <div class="sec-head">
+      <div><span class="eyebrow" data-i18n="eb2">01 / ai analysis · windows</span><h2 class="reveal" id="ai-title" data-i18n="ai.h">AI that reads findings.<br>Never rewrites them.</h2></div>
+      <p data-i18n="ai.p">Optional. You decide where the model runs: offline on the server, or with a cloud provider after you confirm. The output is shown as interpretation, linked to the findings it cites.</p>
+    </div>
+    <div class="panel ai-wrap">
+      <div class="ai-top">
+        <div class="blk in"><h4 data-i18n="ai.in1">Selected findings</h4><p data-i18n="ai.in1p">you choose which</p></div>
+        <div class="blk in"><h4 data-i18n="ai.in2">Output language</h4><p data-i18n="ai.in2p">any of the nine</p></div>
+      </div>
+      <div class="ai-grid">
+        <div class="blk local"><h4 data-i18n="ai.loc">Local · offline</h4><p data-i18n="ai.locp">open models from Hugging Face<br>SHA-256 verified downloads<br>bundled llama.cpp<br>CPU or Vulkan GPU</p></div>
+        <div class="blk queue"><h4 data-i18n="ai.q">Analysis queue</h4><p data-i18n="ai.qp">one after another · large selections split to fit<br>provider rate limits respected · parts merged</p></div>
+        <div class="blk cloud"><h4 data-i18n="ai.cl">Cloud &amp; API · confirmed</h4><p data-i18n="ai.clp">free: Gemini, Groq, OpenRouter, NVIDIA NIM, Cloudflare, Mistral<br>paid, your key: OpenAI, Claude, Azure, Grok …<br>Ollama · LM Studio · OpenAI-compatible</p></div>
+      </div>
+      <div class="ai-out">
+        <div class="blk out"><h4 data-i18n="ai.o1">Summary</h4></div>
+        <div class="blk out"><h4 data-i18n="ai.o2">Observations</h4><p data-i18n="ai.o2p">confidence</p></div>
+        <div class="blk out"><h4 data-i18n="ai.o3">Contradictions</h4></div>
+        <div class="blk out"><h4 data-i18n="ai.o4">Missing info</h4></div>
+        <div class="blk out"><h4 data-i18n="ai.o5">Verification</h4><p data-i18n="ai.o5p">steps</p></div>
+        <div class="blk out"><h4 data-i18n="ai.o6">Risk matrix</h4></div>
+      </div>
+      <p class="ai-note" data-i18n="ai.note">Original findings and their review status are never changed · every cloud analysis is recorded in the activity log</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Editions ===== -->
+<section class="sec" id="editions" aria-labelledby="ed-title" style="padding-top:24px">
+  <div class="shell">
+    <div class="sec-head">
+      <div><span class="eyebrow" data-i18n="eb1">02 / editions</span><h2 class="reveal" id="ed-title" data-i18n="ed.h">Two editions.<br>One file format.</h2></div>
+      <p data-i18n="ed.p">The Android app keeps everything on your phone. The Windows edition runs as a small server for a team on one PC or a trusted local network. Investigations move between them as versioned JSON.</p>
+    </div>
+    <div class="panel">
+      <div style="padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="tabs" role="tablist" aria-label="Edition">
+          <button type="button" role="tab" id="tab-and" aria-selected="true" aria-controls="ed-panel" data-ed="android" data-i18n="ed.tab.and">Android app</button>
+          <button type="button" role="tab" id="tab-win" aria-selected="false" aria-controls="ed-panel" data-ed="windows" tabindex="-1" data-i18n="ed.tab.win">Windows edition</button>
+        </div>
+        <span style="font:500 12px var(--mono);color:var(--muted)" id="edVer">v0.1.0 · Android 8.0+</span>
+      </div>
+      <div class="ed-body" id="ed-panel" role="tabpanel" aria-labelledby="tab-and">
+        <div class="ed-text" id="edText"></div>
+        <div>
+          <div class="diagram" id="edDiagram" aria-hidden="true"></div>
+          <div class="shots" id="edShots"></div>
+        </div>
+      </div>
+      <div class="panel-foot">
+        <div class="legend"><span style="--c:var(--brand-2)" data-i18n="ed.leg1">target value only</span><span style="--c:var(--teal)" data-i18n="ed.leg2">findings with evidence</span><span style="--c:var(--gold)" data-i18n="ed.leg3">optional, after you confirm</span></div>
+        <span data-i18n="ed.foot">Exchange: versioned JSON, both ways</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Sources catalog ===== -->
+<section class="sec" id="sources" aria-labelledby="src-title" style="padding-top:24px">
+  <div class="shell">
+    <div class="sec-head">
+      <div><span class="eyebrow" data-i18n="eb3">03 / sources</span><h2 class="reveal" id="src-title" data-i18n="src.h">Sources you pick.<br>Quotas you can read.</h2></div>
+      <p data-i18n="src.p">Key-free sources work out of the box. The others use your own free key, with setup instructions in the app. Quotas and terms change; this list mirrors the project's API registry.</p>
+    </div>
+    <div class="tools">
+      <label class="search"><svg class="icon"><use href="#i-scan"/></svg><span class="sr-only" data-i18n="src.search">Search sources</span><input id="q" type="search" autocomplete="off" placeholder="Search sources, target types or notes…"></label>
+      <label class="sel"><span data-i18n="src.key">key</span><select id="fKey"><option value="" data-i18n="src.any">Any</option><option value="none" data-i18n="auth.none">Not needed</option><option value="optional" data-i18n="auth.optional">Optional</option><option value="key" data-i18n="auth.key">Your key</option></select></label>
+      <label class="sel"><span data-i18n="src.type">target</span><select id="fType"></select></label>
+    </div>
+    <div class="panel">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th data-i18n="th.src">Source</th><th data-i18n="th.types">Target types</th><th data-i18n="th.key">Key</th><th data-i18n="th.quota">Free quota (as stated)</th><th data-i18n="th.notes">Notes</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="panel-foot"><span id="count"></span><div class="pager" id="pager"></div></div>
+    </div>
+    <details class="left-out">
+      <summary data-i18n="src.out">Evaluated and left out, on purpose</summary>
+      <ul>
+        <li data-i18n="src.out1">Services that upload files or detonate samples: out of scope.</li>
+        <li data-i18n="src.out2">Paid, closed or unclear services.</li>
+        <li data-i18n="src.out3">ip-api.com: the free tier is HTTP only.</li>
+        <li data-i18n="src.out4">Phone-number lookup APIs: personal data; person profiling is out of scope.</li>
+      </ul>
+    </details>
+  </div>
+</section>
+
+<!-- ===== Scope ===== -->
+<section class="sec" id="scope" aria-labelledby="scope-title" style="padding-top:24px">
+  <div class="shell">
+    <div class="sec-head">
+      <div><span class="eyebrow" data-i18n="eb4">04 / privacy and scope</span><h2 class="reveal" id="scope-title" data-i18n="sc.h">Passive by design.<br>Honest about limits.</h2></div>
+      <p data-i18n="sc.p">A query sends only the target value to the sources you selected. Everything else stays on your phone or your own server.</p>
+    </div>
+    <div class="scope">
+      <div class="panel"><h3><i style="--c:var(--teal)"></i><span data-i18n="sc.does">What it does</span></h3>
+        <ul>
+          <li data-i18n="sc.d1"><b>Shows before it sends.</b> Which value goes to which service, before any query starts.</li>
+          <li data-i18n="sc.d2"><b>Keeps evidence.</b> Source link, retrieval time, an excerpt with SHA-256 and your review status for every finding.</li>
+          <li data-i18n="sc.d3"><b>Protects keys.</b> AES-GCM with Android Keystore on the phone, a server key vault on Windows.</li>
+          <li data-i18n="sc.d4"><b>Stays local.</b> The Windows admin panel listens only on the server itself.</li>
+        </ul>
+      </div>
+      <div class="panel"><h3><i style="--c:#e5534b"></i><span data-i18n="sc.never">What it never does</span></h3>
+        <ul>
+          <li data-i18n="sc.n1"><b>No active attacks.</b> No port scanning, exploitation, login bypass, file uploads or person profiling. Ping is the only active check and is never preselected.</li>
+          <li data-i18n="sc.n2"><b>No verdict.</b> There is deliberately no overall risk score.</li>
+          <li data-i18n="sc.n3"><b>No keys in output.</b> API keys never appear in reports or exports.</li>
+          <li data-i18n="sc.n4"><b>No internet exposure.</b> The Windows user panel uses plain HTTP and is meant for a trusted local network only. IP geolocation estimates a network, not a person.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Install ===== -->
+<section class="sec" id="install" aria-labelledby="in-title" style="padding-top:24px">
+  <div class="shell">
+    <div class="sec-head">
+      <div><span class="eyebrow" data-i18n="eb5">05 / install</span><h2 class="reveal" id="in-title" data-i18n="in.h">Download.<br>Verify. Start.</h2></div>
+      <p data-i18n="in.p">Compare the SHA-256 with the release notes before you install. Java and llama.cpp are bundled with the Windows ZIP; AI models are downloaded later from the admin panel.</p>
+    </div>
+    <div class="dl">
+      <a href="https://github.com/smyrna-pergamum/osint-book/releases/tag/web-v0.2.2"><span class="ic"><svg class="icon"><use href="#i-monitor"/></svg></span><span><b data-i18n="in.win">Windows edition 0.2.2</b><small>OSINT-Book-Web-0.2.2-Windows-x64.zip · 116 MB</small></span><svg class="icon go"><use href="#i-out"/></svg></a>
+      <a href="https://github.com/smyrna-pergamum/osint-book/releases/tag/v0.1.0"><span class="ic"><svg class="icon"><use href="#i-phone"/></svg></span><span><b data-i18n="in.and">Android app 0.1.0</b><small>OSINT-Book-0.1.0.apk · 2.6 MB</small></span><svg class="icon go"><use href="#i-out"/></svg></a>
+    </div>
+    <div class="term">
+      <div class="term-bar">
+        <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="term-tabs" role="tablist" aria-label="Platform">
+          <button type="button" role="tab" aria-selected="true" data-term="win">windows</button>
+          <button type="button" role="tab" aria-selected="false" data-term="and" tabindex="-1">android</button>
+          <button type="button" role="tab" aria-selected="false" data-term="build" tabindex="-1">build</button>
+        </div>
+        <div class="term-meta"><span class="who" id="termWho">~ · powershell</span><button class="term-copy" type="button" id="termCopy" data-i18n="in.copy">COPY</button></div>
+      </div>
+      <pre id="termPre" tabindex="0" aria-label="Install commands"></pre>
+      <div class="term-foot"><span class="live" id="termFoot"></span><span id="termFoot2"></span></div>
+    </div>
+    <p class="status-note" data-i18n="in.status"><b>Early releases.</b> Android 0.1.0 is tested with unit tests and on an Android 15 emulator, not yet on many real devices. Windows 0.2.2 is tested end to end on Windows 11, on CPU and a Vulkan GPU. Key-based sources and cloud AI providers are not yet tested with live keys for every provider.</p>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="shell">
+    <div class="foot-grid">
+      <div class="foot-about">
+        <h2 data-i18n="f.about">About</h2>
+        <p data-i18n="f.aboutp">OSINT-Book is free software under GPL-3.0-or-later. Bug reports and suggestions are welcome in Issues.</p>
+        <div class="langs" aria-label="App languages"><span>English</span><span>Türkçe</span><span>Deutsch</span><span>Français</span><span>Español</span><span>Italiano</span><span>Português</span><span>Русский</span><span lang="ar">العربية</span></div>
+      </div>
+      <div><h2 data-i18n="f.proj">Project</h2>
+        <div class="flist">
+          <a href="https://github.com/smyrna-pergamum/osint-book">GitHub <svg class="icon"><use href="#i-out"/></svg></a>
+          <a href="https://github.com/smyrna-pergamum/osint-book/releases"><span data-i18n="f.rel">Releases</span> <svg class="icon"><use href="#i-out"/></svg></a>
+          <a href="https://github.com/smyrna-pergamum/osint-book/blob/main/CHANGELOG.md"><span data-i18n="f.chg">Changelog</span> <svg class="icon"><use href="#i-out"/></svg></a>
+          <a href="https://github.com/smyrna-pergamum/osint-book/issues"><span data-i18n="f.iss">Issues</span> <svg class="icon"><use href="#i-out"/></svg></a>
+        </div>
+      </div>
+      <div><h2 data-i18n="f.docs">Documents</h2>
+        <div class="flist">
+          <a href="https://github.com/smyrna-pergamum/osint-book/blob/main/PRIVACY.md"><span data-i18n="f.priv">Privacy</span> <svg class="icon"><use href="#i-arrow"/></svg></a>
+          <a href="https://github.com/smyrna-pergamum/osint-book/blob/main/docs/API_REGISTRY.md"><span data-i18n="f.api">API registry</span> <svg class="icon"><use href="#i-arrow"/></svg></a>
+          <a href="https://github.com/smyrna-pergamum/osint-book/blob/main/web/README.md"><span data-i18n="f.guide">Windows guide</span> <svg class="icon"><use href="#i-arrow"/></svg></a>
+          <a href="https://github.com/smyrna-pergamum/osint-book/blob/main/BUILDING.md"><span data-i18n="f.build">Building</span> <svg class="icon"><use href="#i-arrow"/></svg></a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span style="display:flex;align-items:center;gap:10px"><a class="brand" href="#top"><img src="assets/icon.svg" alt="" width="26" height="26"><span>osint<b>book</b></span></a><span class="ver">0.1.0 · 0.2.2</span></span>
+      <span data-i18n="f.osm">Map data © OpenStreetMap contributors · sample data on this page is marked as such</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+var RM = window.matchMedia('(prefers-reduced-motion: reduce)');
+var FORCE_STATIC = /[?&]motion=reduce/.test(location.search); /* preview the static tier */
+function reduced(){ return RM.matches || FORCE_STATIC; }
+var lang = 'en';
+try { var saved = localStorage.getItem('ob-lang'); if (saved === 'tr' || saved === 'en') lang = saved; else if ((navigator.language||'').toLowerCase().indexOf('tr') === 0) lang = 'tr'; } catch (e) {}
+
+/* ---------- i18n: English is the HTML itself; Turkish lives here ---------- */
+var TR = {
+  'skip':'İçeriğe geç',
+  'nav.how':'Nasıl çalışır','nav.editions':'Sürümler','nav.ai':'Yapay zekâ analizi','nav.sources':'Kaynaklar','nav.install':'Kurulum','nav.download':'İndir',
+  'hero.title':'Kaynak öncelikli<br>OSINT defteri',
+  'hero.sub':'Alan adlarını, URL\'leri, IP\'leri, kuruluşları, depoları, paketleri ve dosya hash\'lerini kendi seçtiğiniz açık kaynaklarla araştırın. Kural tabanlı analiz ve isteğe bağlı yapay zekâ analizi, bulguları kanıtına dayanan gözlemlere çevirir.',
+  'hero.ai.tag':'Yapay zekâ analizi','hero.ai':'Yerel modeller çevrimdışı ya da onayınızdan sonra bulut API\'leri. Windows sürümü.','hero.fact.ai':'YZ analizi (Windows)',
+  'hero.win.h':'Windows sürümü','hero.win.btn':'Windows ZIP · 0.2.2','hero.and.btn':'Android APK · 0.1.0','hero.more':'Bir hedefi takip edin',
+  'hero.and.h':'Aynı kaynaklar, aynı dosya biçimi',
+  'hero.and.p':'<b>Telefonda tek kişi ya da yerel ağda bir ekip.</b> İki sürüm de aynı kaynakları, kural tabanlı analizi ve sürümlü JSON değişim biçimini paylaşır. Hesap yok, reklam yok, izleme yok, telemetri yok.',
+  'hero.langs':'9 dil','hero.oss':'Özgür ve açık kaynak',
+  'story.sr':'OSINT-Book nasıl çalışır, dört adımda',
+  'story.sr1':'Bir hedef ekler ve kaynakları seçersiniz. Bir şey gönderilmeden önce uygulama hangi değerin hangi servise gideceğini gösterir.',
+  'story.sr2':'Her bulgu kaynak bağlantısını, alınma zamanını, SHA-256 ile kanıt alıntısını ve sizin inceleme durumunuzu saklar.',
+  'story.sr3':'Kural tabanlı analiz, bulguları ağ isteği yapmadan ve genel risk puanı vermeden Bilgi, Dikkat veya Eksik olarak işaretlenmiş düz cümlelere çevirir.',
+  'story.sr4':'Raporlar (PDF, HTML, JSON, CSV) her iddiayı kaynağına bağlı tutar.',
+  'story.hint':'kaydırın · bir hedefi takip edin','story.close':'Her iddia,<br>kaynağına bağlı.','story.closeSub':'pasif · kaynak öncelikli · hüküm yok',
+  'strip.lab':'Anahtarsız, hemen çalışan kaynaklar',
+  'ed.h':'İki sürüm.<br>Tek dosya biçimi.','ed.p':'Android uygulaması her şeyi telefonunuzda tutar. Windows sürümü tek bir PC\'de ya da güvenilir yerel ağda çalışan bir ekip için küçük bir sunucudur. Araştırmalar iki sürüm arasında sürümlü JSON olarak taşınır.',
+  'ed.tab.and':'Android uygulaması','ed.tab.win':'Windows sürümü','ed.leg1':'yalnızca hedef değer','ed.leg2':'kanıtlı bulgular','ed.leg3':'isteğe bağlı, onayınızdan sonra','ed.foot':'Değişim: iki yönde sürümlü JSON',
+  'ai.h':'Bulguları okuyan yapay zekâ.<br>Asla değiştirmez.','ai.p':'İsteğe bağlı. Modelin nerede çalışacağına siz karar verirsiniz: sunucuda çevrimdışı ya da onayınızdan sonra bir bulut sağlayıcıda. Çıktı yorum olarak gösterilir ve dayandığı bulgulara bağlanır.',
+  'ai.in1':'Seçili bulgular','ai.in1p':'hangilerini siz seçersiniz','ai.in2':'Çıktı dili','ai.in2p':'dokuz dilden biri',
+  'ai.loc':'Yerel · çevrimdışı','ai.locp':'Hugging Face\'ten açık modeller<br>SHA-256 doğrulamalı indirme<br>paketli llama.cpp<br>CPU veya Vulkan GPU',
+  'ai.q':'Analiz kuyruğu','ai.qp':'sırayla · büyük seçimler sığacak şekilde bölünür<br>sağlayıcı limitlerine uyulur · parçalar birleştirilir',
+  'ai.cl':'Bulut ve API · onaylı','ai.clp':'ücretsiz: Gemini, Groq, OpenRouter, NVIDIA NIM, Cloudflare, Mistral<br>ücretli, kendi anahtarınız: OpenAI, Claude, Azure, Grok …<br>Ollama · LM Studio · OpenAI uyumlu',
+  'ai.o1':'Özet','ai.o2':'Gözlemler','ai.o2p':'güven düzeyi','ai.o3':'Çelişkiler','ai.o4':'Eksik bilgi','ai.o5':'Doğrulama','ai.o5p':'adımları','ai.o6':'Risk matrisi',
+  'ai.note':'Orijinal bulgular ve inceleme durumları asla değişmez · her bulut analizi etkinlik günlüğüne yazılır',
+  'src.h':'Kaynakları siz seçin.<br>Kotalar açıkça yazılı.','src.p':'Anahtarsız kaynaklar hemen çalışır. Diğerleri sizin ücretsiz anahtarınızı kullanır; kurulum adımları uygulamada. Kotalar ve koşullar değişebilir; bu liste projenin API kaydını yansıtır.',
+  'src.search':'Kaynaklarda ara','src.key':'anahtar','src.type':'hedef','src.any':'Hepsi','auth.none':'Gerekmez','auth.optional':'İsteğe bağlı','auth.key':'Sizin anahtarınız',
+  'th.src':'Kaynak','th.types':'Hedef türleri','th.key':'Anahtar','th.quota':'Ücretsiz kota (belirtildiği gibi)','th.notes':'Notlar',
+  'src.out':'Değerlendirilip bilerek dışarıda bırakılanlar','src.out1':'Dosya yükleyen veya örnek çalıştıran servisler: kapsam dışı.','src.out2':'Ücretli, kapalı veya belirsiz servisler.','src.out3':'ip-api.com: ücretsiz katman yalnızca HTTP.','src.out4':'Telefon numarası sorgulama API\'leri: kişisel veri; kişi profillemesi kapsam dışı.',
+  'sc.h':'Tasarımı gereği pasif.<br>Sınırları konusunda dürüst.','sc.p':'Bir sorgu, seçtiğiniz kaynaklara yalnızca hedef değeri gönderir. Geri kalan her şey telefonunuzda ya da kendi sunucunuzda kalır.',
+  'sc.does':'Ne yapar','sc.never':'Asla ne yapmaz',
+  'sc.d1':'<b>Göndermeden önce gösterir.</b> Sorgu başlamadan hangi değerin hangi servise gideceğini.','sc.d2':'<b>Kanıtı saklar.</b> Her bulgu için kaynak bağlantısı, alınma zamanı, SHA-256\'lı alıntı ve inceleme durumunuz.','sc.d3':'<b>Anahtarları korur.</b> Telefonda Android Keystore ile AES-GCM, Windows\'ta sunucu anahtar kasası.','sc.d4':'<b>Yerelde kalır.</b> Windows yönetim paneli yalnızca sunucunun kendisinde dinler.',
+  'sc.n1':'<b>Aktif saldırı yok.</b> Port tarama, istismar, giriş atlatma, dosya yükleme veya kişi profillemesi yok. Tek aktif kontrol ping\'dir ve asla önceden seçili gelmez.','sc.n2':'<b>Hüküm yok.</b> Bilerek genel bir risk puanı yoktur.','sc.n3':'<b>Çıktıda anahtar yok.</b> API anahtarları raporlarda ve dışa aktarımlarda asla görünmez.','sc.n4':'<b>İnternete açılmaz.</b> Windows kullanıcı paneli düz HTTP kullanır ve yalnızca güvenilir yerel ağ içindir. IP konumu bir ağı tahmin eder, bir kişiyi değil.',
+  'in.h':'İndir.<br>Doğrula. Başlat.','in.p':'Kurmadan önce SHA-256 değerini sürüm notlarıyla karşılaştırın. Java ve llama.cpp Windows ZIP\'ine dahildir; yapay zekâ modelleri sonradan yönetim panelinden indirilir.',
+  'in.win':'Windows sürümü 0.2.2','in.and':'Android uygulaması 0.1.0','in.copy':'KOPYALA',
+  'in.status':'<b>Erken sürümler.</b> Android 0.1.0 birim testleriyle ve bir Android 15 emülatöründe test edildi, henüz çok sayıda gerçek cihazda değil. Windows 0.2.2, Windows 11\'de CPU ve Vulkan GPU üzerinde uçtan uca test edildi. Anahtarlı kaynaklar ve bulut yapay zekâ sağlayıcıları henüz her sağlayıcı için gerçek anahtarlarla test edilmedi.',
+  'f.about':'Hakkında','f.aboutp':'OSINT-Book, GPL-3.0-or-later lisanslı özgür bir yazılımdır. Hata bildirimleri ve öneriler Issues bölümüne.','f.proj':'Proje','f.rel':'Sürümler','f.chg':'Değişiklikler','f.iss':'Issues','f.docs':'Belgeler','f.priv':'Gizlilik','f.api':'API kaydı','f.guide':'Windows kılavuzu','f.build':'Derleme',
+  'eb1':'02 / sürümler','eb2':'01 / yapay zekâ analizi · windows','eb3':'03 / kaynaklar','eb4':'04 / gizlilik ve kapsam','eb5':'05 / kurulum',
+  'f.osm':'Harita verisi © OpenStreetMap katkıcıları · bu sayfadaki örnek veriler işaretlenmiştir'
+};
+var EN = {};
+function T(o){ return typeof o === 'string' ? o : (o[lang] || o.en); }
+
+function applyStatic(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    var k = el.getAttribute('data-i18n');
+    if (!(k in EN)) EN[k] = el.innerHTML;
+    el.innerHTML = (lang === 'tr' && TR[k]) ? TR[k] : EN[k];
+  });
+  document.documentElement.lang = lang;
+  document.title = lang === 'tr' ? 'OSINT-Book · kaynak öncelikli OSINT defteri' : 'OSINT-Book · source-first OSINT notebook';
+  document.getElementById('q').placeholder = lang === 'tr' ? 'Kaynak, hedef türü veya not ara…' : 'Search sources, target types or notes…';
+  document.querySelectorAll('.lang button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.lang === lang)); });
+}
+
+/* ---------- Topology graph (hero + stage) ---------- */
+var SVGNS = 'http://www.w3.org/2000/svg';
+var GNODES = [
+  {id:'t',   x:600, y:250, icon:'i-globe',   label:'example.org', sub:{en:'target · sample',tr:'hedef · örnek'}, kind:'target'},
+  {id:'dns', x:265, y:265, icon:'i-dns',     label:'google dns',  sub:{en:'key-free',tr:'anahtarsız'}, kind:'free'},
+  {id:'rd',  x:430, y:100, icon:'i-id',      label:'rdap',        sub:{en:'key-free',tr:'anahtarsız'}, kind:'free'},
+  {id:'wb',  x:790, y:90,  icon:'i-history', label:'wayback',     sub:{en:'key-free',tr:'anahtarsız'}, kind:'free'},
+  {id:'us',  x:960, y:235, icon:'i-scan',    label:'urlscan',     sub:{en:'key optional',tr:'anahtar isteğe bağlı'}, kind:'opt'},
+  {id:'vt',  x:860, y:425, icon:'i-shield',  label:'virustotal',  sub:{en:'your key',tr:'sizin anahtarınız'}, kind:'key'},
+  {id:'ip',  x:700, y:460, icon:'i-pin',     label:'ip geo ×3',   sub:{en:'key-free',tr:'anahtarsız'}, kind:'free'}
+];
+function el(name, attrs, parent){ var e = document.createElementNS(SVGNS, name); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function buildGraph(svg){
+  svg.innerHTML = '';
+  var defs = el('defs', {}, svg);
+  var rg = el('radialGradient', {id: svg.id + '-halo'}, defs);
+  el('stop', {offset:'0', 'stop-color':'#e8590c', 'stop-opacity':'.55'}, rg);
+  el('stop', {offset:'1', 'stop-color':'#e8590c', 'stop-opacity':'0'}, rg);
+  var rg2 = el('radialGradient', {id: svg.id + '-halo2'}, defs);
+  el('stop', {offset:'0', 'stop-color':'#52d5ad', 'stop-opacity':'.28'}, rg2);
+  el('stop', {offset:'1', 'stop-color':'#52d5ad', 'stop-opacity':'0'}, rg2);
+  var gE = el('g', {}, svg), gP = el('g', {}, svg), gN = el('g', {}, svg);
+  var t = GNODES[0], paths = [];
+  GNODES.slice(1).forEach(function(n, i){
+    var mx = (t.x + n.x) / 2, my = (t.y + n.y) / 2, dx = n.x - t.x, dy = n.y - t.y, len = Math.hypot(dx, dy);
+    var bend = (i % 2 ? 1 : -1) * len * .22, cx = mx - dy / len * bend, cy = my + dx / len * bend;
+    paths.push(el('path', {d:'M'+t.x+','+t.y+' Q'+cx+','+cy+' '+n.x+','+n.y, 'class':'g-edge'}, gE));
+  });
+  GNODES.forEach(function(n){
+    var g = el('g', {'data-node': n.id}, gN);
+    if (n.kind === 'target'){
+      el('circle', {cx:n.x, cy:n.y, r:74, fill:'url(#'+svg.id+'-halo)', 'class':'g-halo'}, g);
+      el('circle', {cx:n.x, cy:n.y, r:44, 'class':'g-ring'}, g);
+    } else {
+      el('circle', {cx:n.x, cy:n.y, r:40, fill:'url(#'+svg.id+'-halo2)'}, g);
+    }
+    var r = n.kind === 'target' ? 26 : 19;
+    el('circle', {cx:n.x, cy:n.y, r:r, 'class':'g-node ' + n.kind}, g);
+    var s = n.kind === 'target' ? 24 : 18;
+    var u = el('use', {href:'#'+n.icon, x:n.x - s/2, y:n.y - s/2, width:s, height:s, 'class':'g-ico' + (n.kind === 'target' ? ' target' : '')}, g);
+    var lt = el('text', {x:n.x, y:n.y + r + 20, 'class':'g-label'}, g); lt.textContent = n.label;
+    var st = el('text', {x:n.x, y:n.y + r + 35, 'class':'g-sub', 'data-sub': n.id}, g); st.textContent = T(n.sub);
+  });
+  return {svg:svg, paths:paths, lens:paths.map(function(p){ return p.getTotalLength(); }), layer:gP, pk:[], last:0, spawn:0};
+}
+function relabelGraph(G){ GNODES.forEach(function(n){ var s = G.svg.querySelector('[data-sub="'+n.id+'"]'); if (s) s.textContent = T(n.sub); }); }
+function tickGraph(G, now){
+  var dt = Math.min(64, now - (G.last || now)); G.last = now;
+  G.spawn -= dt;
+  if (G.spawn <= 0 && G.pk.length < 9){
+    var i = Math.floor(Math.random() * G.paths.length);
+    if (i === 4 && Math.random() < .7) i = 0; /* virustotal needs a key: rarely */
+    var c = el('circle', {r:3.2, 'class':'g-pkt-out'}, G.layer);
+    G.pk.push({i:i, t:0, dir:1, c:c, v:.00042 + Math.random() * .00018});
+    G.spawn = 420 + Math.random() * 380;
+  }
+  for (var k = G.pk.length - 1; k >= 0; k--){
+    var p = G.pk[k]; p.t += p.v * dt;
+    if (p.t >= 1){
+      if (p.dir === 1){ p.dir = -1; p.t = 0; p.c.setAttribute('class', 'g-pkt-in'); p.c.setAttribute('r', '3.6'); }
+      else { p.c.remove(); G.pk.splice(k, 1); continue; }
+    }
+    var f = p.dir === 1 ? p.t : 1 - p.t;
+    var pt = G.paths[p.i].getPointAtLength(f * G.lens[p.i]);
+    p.c.setAttribute('cx', pt.x.toFixed(1)); p.c.setAttribute('cy', pt.y.toFixed(1));
+    p.c.setAttribute('opacity', Math.min(1, Math.sin(p.t * Math.PI) * 2).toFixed(2));
+  }
+}
+function fitViewBox(svg){ svg.setAttribute('viewBox', window.innerWidth < 760 ? '150 40 900 480' : '0 0 1200 520'); }
+
+/* ---------- Story board ---------- */
+var STEPS = [
+  {k:'target',   h:{en:'One target.<br>The sources you choose.', tr:'Tek hedef.<br>Seçtiğiniz kaynaklar.'}},
+  {k:'findings', h:{en:'Every finding<br>keeps its source.', tr:'Her bulgu<br>kaynağını saklar.'}},
+  {k:'analysis', h:{en:'Plain sentences.<br>No network request.', tr:'Düz cümleler.<br>Ağ isteği yok.'}},
+  {k:'report',   h:{en:'A report you can trace.', tr:'İzlenebilir bir rapor.'}}
+];
+var RAIL = {en:['01 target','02 findings','03 analysis','04 report'], tr:['01 hedef','02 bulgular','03 analiz','04 rapor']};
+var SRC = [
+  {n:'google dns', ic:'i-dns',     a:'free', to:'dns.google',          fd:{en:'DMARC p=none',tr:'DMARC p=none'}, fs:{en:'TXT _dmarc · 12:04:09',tr:'TXT _dmarc · 12:04:09'}},
+  {n:'rdap',       ic:'i-id',      a:'free', to:'IANA → registry',     fd:{en:'created 1995 · transfer lock',tr:'oluşturma 1995 · transfer kilidi'}, fs:{en:'registry answer · 12:04:10',tr:'kayıt yanıtı · 12:04:10'}},
+  {n:'wayback',    ic:'i-history', a:'free', to:'archive.org',         fd:{en:'first capture 2002',tr:'ilk kayıt 2002'}, fs:{en:'CDX · 12:04:11',tr:'CDX · 12:04:11'}},
+  {n:'urlscan',    ic:'i-scan',    a:'opt',  to:'urlscan.io search',   fd:{en:'3 public scans',tr:'3 herkese açık tarama'}, fs:{en:'search only · 12:04:12',tr:'yalnızca arama · 12:04:12'}},
+  {n:'virustotal', ic:'i-shield',  a:'key',  to:{en:'needs your key',tr:'anahtarınız gerekli'}, fd:{en:'skipped · no key',tr:'atlandı · anahtar yok'}, fs:{en:'gap, listed in analysis',tr:'boşluk, analizde listelenir'}, gap:true},
+  {n:'ip geo ×3',  ic:'i-pin',     a:'free', to:'ipwho.is · ipapi.co · GeoJS', fd:{en:'203.0.113.7 · 2 cities',tr:'203.0.113.7 · 2 şehir'}, fs:{en:'sources disagree · 12:04:13',tr:'kaynaklar uyuşmuyor · 12:04:13'}}
+];
+var OBS = [
+  {cls:'info', ic:'i-info',  t:{en:'Info',tr:'Bilgi'},      p:{en:'Registered since 1995. Transfer lock is set.',tr:'1995\'ten beri kayıtlı. Transfer kilidi açık.'}, f:1},
+  {cls:'att',  ic:'i-alert', t:{en:'Attention',tr:'Dikkat'}, p:{en:'DMARC policy is p=none: spoofed mail is not rejected.',tr:'DMARC politikası p=none: sahte e-postalar reddedilmiyor.'}, f:0},
+  {cls:'miss', ic:'i-q',     t:{en:'Missing',tr:'Eksik'},    p:{en:'VirusTotal could add more with your free key.',tr:'VirusTotal ücretsiz anahtarınızla daha fazlasını ekleyebilir.'}, f:4}
+];
+var AUTHL = {free:{en:'key-free',tr:'anahtarsız'}, opt:{en:'key optional',tr:'isteğe bağlı'}, key:{en:'your key',tr:'anahtarınız'}};
+
+var LAYOUT = {
+  wide: {W:1120, H:560, narrow:false,
+    target:{x:380,y:94,w:360,h:372}, nb:{w:360,h:420,a:{x:380,y:70},c:{x:90,y:70,s:1}},
+    src:[{x:40,y:24},{x:40,y:218},{x:40,y:412},{x:880,y:24},{x:880,y:218},{x:880,y:412}], sw:200, sh:124,
+    slot:{x:30,y:104,dy:50,w:300,h:42},
+    obs:[{x:610,y:70},{x:610,y:206},{x:610,y:342}], ow:440, oh:112, verdict:{x:610,y:476},
+    rep:{x:300,y:40,w:520,h:340}, commit:{x:300,y:398,w:520,h:88}},
+  narrow: {W:360, H:640, narrow:true,
+    target:{x:10,y:70,w:340,h:384}, nb:{w:340,h:420,a:{x:10,y:104},c:{x:10,y:0,s:.6}},
+    src:[{x:10,y:0},{x:126,y:0},{x:242,y:0},{x:10,y:48},{x:126,y:48},{x:242,y:48}], sw:108, sh:40,
+    slot:{x:20,y:104,dy:50,w:300,h:42},
+    obs:[{x:10,y:268},{x:10,y:388},{x:10,y:508}], ow:340, oh:112, verdict:null,
+    rep:{x:10,y:40,w:340,h:350}, commit:{x:10,y:408,w:340,h:96}}
+};
+
+function ease(t){ return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; }
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function seg(p, a, b){ return clamp((p - a) / (b - a), 0, 1); }
+function kf(frames, p){
+  if (p <= frames[0][0]) return frames[0][1];
+  for (var i = 1; i < frames.length; i++){
+    if (p <= frames[i][0]){
+      var a = frames[i-1], b = frames[i], t = ease((p - a[0]) / (b[0] - a[0] || 1)), o = {};
+      for (var k in b[1]) o[k] = (a[1][k] == null ? b[1][k] : a[1][k]) + (b[1][k] - (a[1][k] == null ? b[1][k] : a[1][k])) * t;
+      for (var k2 in a[1]) if (!(k2 in o)) o[k2] = a[1][k2];
+      return o;
+    }
+  }
+  return frames[frames.length - 1][1];
+}
+function place(node, s){ node.style.transform = 'translate(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px) scale(' + (s.s == null ? 1 : s.s).toFixed(3) + ')'; node.style.opacity = (s.o == null ? 1 : s.o).toFixed(3); node.style.visibility = s.o != null && s.o < .01 ? 'hidden' : 'visible'; }
+function div(cls, html, w, h){ var d = document.createElement('div'); d.className = cls; if (html) d.innerHTML = html; if (w) d.style.width = w + 'px'; if (h) d.style.height = h + 'px'; return d; }
+function ico(id){ return '<svg class="icon"><use href="#' + id + '"/></svg>'; }
+
+function createBoard(L){
+  var b = div('board' + (L.narrow ? ' narrow' : ''), '', L.W, L.H);
+  var E = {L:L, b:b};
+  var srcs = SRC.map(function(s){ return {free:'free',opt:'opt',key:'key'}[s.a]; });
+  /* target card */
+  var rows = SRC.map(function(s, i){
+    return '<div class="srow" data-i="' + i + '"><span class="box"><svg viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></svg></span><span>' + s.n.replace(' ×3','') + '</span><span class="to">→ ' + T(s.to) + '</span><span class="chip ' + srcs[i] + '">' + T(AUTHL[s.a]) + '</span></div>';
+  }).join('') + '<div class="srow"><span class="box"></span><span>ping</span><span class="to">' + T({en:'active · off by default',tr:'aktif · varsayılan kapalı'}) + '</span><span class="chip">' + T({en:'off',tr:'kapalı'}) + '</span></div>';
+  E.target = div('b-el pc pc-pad tcard',
+    '<div class="tcard-top"><span class="mlabel">' + T({en:'target · domain',tr:'hedef · alan adı'}) + '</span><span class="chip brand">' + T({en:'sample data',tr:'örnek veri'}) + '</span></div>' +
+    '<h4>example.org</h4>' +
+    '<div class="stats3"><div><span class="mlabel">' + T({en:'sources',tr:'kaynak'}) + '</span><b>' + T({en:'5 selected',tr:'5 seçili'}) + '</b></div><div><span class="mlabel">' + T({en:'sends',tr:'gönderilen'}) + '</span><b>' + T({en:'target only',tr:'yalnızca hedef'}) + '</b></div><div><span class="mlabel">' + T({en:'before send',tr:'göndermeden'}) + '</span><b>' + T({en:'shown',tr:'gösterilir'}) + '</b></div></div>' + rows,
+    L.target.w, L.target.h);
+  b.appendChild(E.target);
+  /* source cards */
+  E.src = SRC.map(function(s, i){
+    var d = div('b-el pc srcc', '<div class="h"><span>' + ico(s.ic) + s.n + '</span><span class="chip ' + srcs[i] + '">' + T(AUTHL[s.a]) + '</span></div><div class="slot">' + T(s.fs) + '</div>', L.sw, L.sh);
+    b.appendChild(d); return d;
+  });
+  /* notebook */
+  E.nb = div('b-el pc pc-pad nb',
+    '<div class="tcard-top"><span class="mlabel">' + T({en:'investigation',tr:'araştırma'}) + '</span><span class="chip brand">' + T({en:'sample data',tr:'örnek veri'}) + '</span></div><h4>example.org</h4>' +
+    '<div class="bar"><span class="chip">' + T({en:'5 findings',tr:'5 bulgu'}) + '</span><span class="chip">' + T({en:'1 gap',tr:'1 boşluk'}) + '</span><span class="chip">' + T({en:'evidence: SHA-256',tr:'kanıt: SHA-256'}) + '</span></div>',
+    L.nb.w, L.nb.h);
+  b.appendChild(E.nb);
+  /* finding chips */
+  var hues = ['#e8590c','#0d7a70','#c2410c','#3c6f63','#c9a227','#0d7a70'];
+  E.f = SRC.map(function(s, i){
+    var d = div('b-el fchip' + (s.gap ? ' gap' : ''), '<i style="--c:' + hues[i] + '"></i><b>F-0' + (i+1) + '</b><span class="v">' + T(s.fd) + '<small>' + s.n + ' · sha-256 ' + ['3f9a','b07c','51e2','9d4f','—','c8a1'][i] + '…</small></span><span class="status">' + (s.gap ? T({en:'missing',tr:'eksik'}) : T({en:'not reviewed',tr:'incelenmedi'})) + '</span>', L.slot.w, L.slot.h);
+    b.appendChild(d); return d;
+  });
+  /* observation cards */
+  E.o = OBS.map(function(o){
+    var d = div('b-el pc obs ' + o.cls, '<div class="h">' + ico(o.ic) + T(o.t) + '</div><p>' + T(o.p) + '</p><div class="based">' + T({en:'based on',tr:'dayanak'}) + ' F-0' + (o.f + 1) + '</div>', L.ow, L.oh);
+    b.appendChild(d); return d;
+  });
+  /* connectors */
+  if (!L.narrow){
+    E.svg = el('svg', {'class':'links', width:L.W, height:L.H, viewBox:'0 0 ' + L.W + ' ' + L.H});
+    E.svg.style.cssText = 'position:absolute;left:0;top:0;overflow:visible;pointer-events:none';
+    E.paths = OBS.map(function(){ return el('path', {}, E.svg); });
+    b.insertBefore(E.svg, E.o[0]);
+    E.verdict = div('b-el verdict', T({en:'no overall risk score · no verdict',tr:'genel risk puanı yok · hüküm yok'}));
+    b.appendChild(E.verdict);
+  }
+  /* report + commit */
+  var secs = [
+    [T({en:'Executive summary',tr:'Yönetici özeti'}), ''],
+    [T({en:'Scope and method',tr:'Kapsam ve yöntem'}), ''],
+    [T({en:'Source and evidence register',tr:'Kaynak ve kanıt kaydı'}), 'K-001…'],
+    [T({en:'Findings and AI inferences',tr:'Bulgular ve YZ çıkarımları'}), 'B-01…'],
+    [T({en:'Risks and recommendations',tr:'Riskler ve öneriler'}), ''],
+    [T({en:'Human review',tr:'İnsan incelemesi'}), '']
+  ];
+  E.rep = div('b-el pc pc-pad rep',
+    '<div class="tcard-top"><span class="mlabel">' + T({en:'report · RPR-0001',tr:'rapor · RPR-0001'}) + '</span><span class="chip brand">' + T({en:'sample data',tr:'örnek veri'}) + '</span></div>' +
+    '<h4>' + T({en:'OSINT Analysis Report',tr:'OSINT Analiz Raporu'}) + '</h4>' +
+    secs.map(function(s, i){ return '<div class="rrow"><span class="n">' + (i+1) + '</span><span>' + s[0] + '</span><span class="chip">' + (s[1] || '✓') + '</span></div>'; }).join('') +
+    '<div class="fmt"><span class="chip brand">PDF</span><span class="chip brand">HTML</span><span class="chip brand">JSON</span><span class="chip">CSV</span><span class="chip">' + T({en:'9 languages',tr:'9 dil'}) + '</span></div>',
+    L.rep.w, L.rep.h);
+  b.appendChild(E.rep);
+  E.commit = div('b-el pc commit',
+    '<span class="ok">' + ico('i-check') + '</span><span class="t"><b>' + T({en:'Report prepared',tr:'Rapor hazır'}) + '</b><small>' + T({en:'6 sources · 5 findings · 3 observations',tr:'6 kaynak · 5 bulgu · 3 gözlem'}) + '</small></span>' +
+    '<span class="route">' + T({en:'TRACE TO SOURCE',tr:'KAYNAĞA İZLE'}) + '<span class="dots">' + '<i></i><i></i><i></i><i></i><i></i><i></i>' + '</span></span>',
+    L.commit.w, L.commit.h);
+  b.appendChild(E.commit);
+  E.dots = E.commit.querySelectorAll('.dots i');
+  E.rows = E.target.querySelectorAll('.srow[data-i]');
+  return E;
+}
+
+function nbState(E, p){
+  var L = E.L, a = L.nb.a, c = L.nb.c;
+  return kf([[.31,{x:a.x,y:a.y,s:.96,o:0}],[.36,{x:a.x,y:a.y,s:1,o:1}],[.56,{x:a.x,y:a.y,s:1,o:1}],[.64,{x:c.x,y:c.y,s:c.s,o:1}],[.79,{x:c.x,y:c.y,s:c.s,o:1}],[.85,{x:c.x + 120,y:c.y + 60,s:c.s*.7,o:0}]], p);
+}
+function renderBoard(E, p){
+  var L = E.L;
+  place(E.target, kf([[0,{x:L.target.x,y:L.target.y + 10,s:.94,o:0}],[.09,{x:L.target.x,y:L.target.y,s:1,o:1}],[.31,{x:L.target.x,y:L.target.y,s:1,o:1}],[.36,{x:L.target.x,y:L.target.y - 8,s:.95,o:0}]], p));
+  for (var r = 0; r < E.rows.length; r++){
+    var on = SRC[r].a !== 'key' && p > .13 + r * .026;
+    E.rows[r].classList.toggle('on', on);
+  }
+  E.src.forEach(function(d, i){
+    var s = L.src[i], st = .33 + i * .012;
+    place(d, kf([[st,{x:s.x,y:s.y + 8,s:.92,o:0}],[st + .04,{x:s.x,y:s.y,s:1,o:1}],[.56,{x:s.x,y:s.y,s:1,o:1}],[.62,{x:s.x + L.sw/2 - 6,y:s.y + L.sh/2 - 6,s:.06,o:0}]], p));
+  });
+  var nb = nbState(E, p); place(E.nb, nb);
+  var nA = L.nb.a;
+  E.f.forEach(function(d, i){
+    var s = L.src[i], st = .37 + i * .024, land = st + .04;
+    var from = {x:s.x + L.sw/2 - L.slot.w * .3, y:s.y + L.sh/2 - L.slot.h * .3, s:.6, o:0};
+    var slot = {x:nA.x + L.slot.x, y:nA.y + L.slot.y + i * L.slot.dy, s:1, o:1};
+    if (p < land) place(d, kf([[st, from],[st + .015,{x:from.x,y:from.y,s:.7,o:1}],[land, slot]], p));
+    else place(d, {x:nb.x + L.slot.x * nb.s, y:nb.y + (L.slot.y + i * L.slot.dy) * nb.s, s:nb.s, o:nb.o});
+  });
+  E.o.forEach(function(d, i){
+    var o = L.obs[i], st = .6 + i * .03;
+    place(d, kf([[st,{x:o.x + 60,y:o.y,s:1,o:0}],[st + .04,{x:o.x,y:o.y,s:1,o:1}],[.79,{x:o.x,y:o.y,s:1,o:1}],[.85,{x:L.rep.x + 60,y:L.rep.y + 120,s:.6,o:0}]], p));
+  });
+  if (E.svg){
+    var fade = 1 - seg(p, .78, .82);
+    E.paths.forEach(function(path, i){
+      var o = L.obs[i], fi = OBS[i].f;
+      var x1 = nb.x + (L.slot.x + L.slot.w) * nb.s, y1 = nb.y + (L.slot.y + fi * L.slot.dy + L.slot.h / 2) * nb.s;
+      var x2 = o.x, y2 = o.y + L.oh / 2, mx = (x1 + x2) / 2;
+      path.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2);
+      var d = seg(p, .66 + i * .03, .7 + i * .03);
+      path.style.opacity = (d > 0 ? fade : 0).toFixed(2);
+      var len = 400; path.style.strokeDasharray = d < 1 ? (len * d) + ' ' + len : '4 5';
+    });
+    place(E.verdict, kf([[.7,{x:L.verdict.x,y:L.verdict.y + 6,o:0}],[.74,{x:L.verdict.x,y:L.verdict.y,o:1}],[.78,{x:L.verdict.x,y:L.verdict.y,o:1}],[.82,{x:L.verdict.x,y:L.verdict.y,o:0}]], p));
+  }
+  place(E.rep, kf([[.8,{x:L.rep.x,y:L.rep.y + 24,s:.94,o:0}],[.86,{x:L.rep.x,y:L.rep.y,s:1,o:1}]], p));
+  place(E.commit, kf([[.86,{x:L.commit.x,y:L.commit.y + 30,o:0}],[.895,{x:L.commit.x,y:L.commit.y,o:1}]], p));
+  for (var k = 0; k < E.dots.length; k++) E.dots[k].classList.toggle('on', p > .88 + k * .006);
+}
+function phaseOf(p){ return p < .33 ? 0 : p < .56 ? 1 : p < .79 ? 2 : 3; }
+
+/* ---------- Story controller ---------- */
+var story = document.getElementById('how'), stage = document.getElementById('stage');
+var light = document.getElementById('stageLight'), wrap = document.getElementById('boardWrap');
+var head = document.getElementById('storyHead'), rail = document.getElementById('rail');
+var closeEl = document.getElementById('stageClose'), hint = document.getElementById('stageHint');
+var heroG = buildGraph(document.getElementById('heroGraph'));
+var stageG = buildGraph(document.getElementById('stageGraph'));
+var board = null, staticMode = false, lastPhase = -1, storyP = 0;
+
+function buildHeadings(){
+  head.innerHTML = STEPS.map(function(s){ return '<h3>' + T(s.h) + '</h3>'; }).join('');
+  rail.innerHTML = RAIL[lang].map(function(r){ return '<span>' + r + '</span>'; }).join('');
+  lastPhase = -1;
+}
+function layoutBoard(){
+  if (!board) return;
+  var L = board.L, w = wrap.clientWidth - 24, h = wrap.clientHeight;
+  var s = Math.min(w / L.W, h / L.H, 1.15);
+  board.b.style.transform = 'translate(' + (-L.W * s / 2) + 'px,' + (-L.H * s / 2) + 'px) scale(' + s + ')';
+}
+function mountStory(){
+  staticMode = reduced();
+  story.classList.toggle('static', staticMode);
+  var frames = stage.querySelector('.frames'); if (frames) frames.remove();
+  wrap.innerHTML = '';
+  if (staticMode){
+    var narrow = window.innerWidth < 760, L = narrow ? LAYOUT.narrow : LAYOUT.wide;
+    var box = document.createElement('div'); box.className = 'shell frames';
+    [.3, .55, .78, 1].forEach(function(p, i){
+      var f = document.createElement('div'); f.className = 'frame';
+      f.innerHTML = '<h3>' + T(STEPS[i].h).replace('<br>', ' ') + '</h3>';
+      var fb = document.createElement('div'); fb.className = 'fb';
+      var E = createBoard(L); fb.appendChild(E.b); f.appendChild(fb); box.appendChild(f);
+      renderBoard(E, p);
+      var s = Math.min(1, (Math.min(window.innerWidth, 1180) - 80) / L.W);
+      E.b.style.transform = 'scale(' + s + ')'; fb.style.width = L.W * s + 'px'; fb.style.height = L.H * s + 'px';
+    });
+    stage.appendChild(box);
+    light.style.display = 'none';
+    return;
+  }
+  light.style.display = '';
+  board = createBoard(window.innerWidth < 760 ? LAYOUT.narrow : LAYOUT.wide);
+  wrap.appendChild(board.b);
+  buildHeadings();
+  layoutBoard();
+  onScroll();
+}
+function targetPoint(){
+  var c = stageG.svg.querySelector('[data-node="t"] .g-node');
+  var r = c.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+  return {x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top};
+}
+function onScroll(){
+  if (staticMode || !board) return;
+  var rect = story.getBoundingClientRect(), total = story.offsetHeight - window.innerHeight;
+  var p = clamp(-rect.top / total, 0, 1); storyP = p;
+  var W = stage.clientWidth, H = stage.clientHeight, tp = targetPoint();
+  var maxR = Math.hypot(Math.max(tp.x, W - tp.x), Math.max(tp.y, H - tp.y)) + 4;
+  var open = ease(seg(p, .015, .1)), shut = ease(seg(p, .915, .975));
+  var R = maxR * open * (1 - shut);
+  if (R >= maxR - 1) light.style.clipPath = 'none';
+  else light.style.clipPath = 'circle(' + R.toFixed(1) + 'px at ' + tp.x.toFixed(1) + 'px ' + tp.y.toFixed(1) + 'px)';
+  light.style.visibility = R < .5 ? 'hidden' : 'visible';
+  hint.style.opacity = (1 - seg(p, 0, .03)).toFixed(2);
+  var c = seg(p, .95, .99);
+  closeEl.style.opacity = c.toFixed(2);
+  stageG.svg.style.opacity = (1 - c * .75).toFixed(2);
+  renderBoard(board, p);
+  var ph = phaseOf(p);
+  if (ph !== lastPhase){
+    lastPhase = ph;
+    head.querySelectorAll('h3').forEach(function(h, i){ h.classList.toggle('on', i === ph); });
+    rail.querySelectorAll('span').forEach(function(s, i){ s.classList.toggle('on', i === ph); });
+  }
+}
+var ticking = false;
+window.addEventListener('scroll', function(){ if (!ticking){ ticking = true; requestAnimationFrame(function(){ ticking = false; onScroll(); }); } }, {passive:true});
+var lastNarrow = window.innerWidth < 760;
+window.addEventListener('resize', function(){
+  fitViewBox(heroG.svg); fitViewBox(stageG.svg);
+  var n = window.innerWidth < 760;
+  if (n !== lastNarrow || staticMode){ lastNarrow = n; mountStory(); } else { layoutBoard(); onScroll(); }
+});
+RM.addEventListener && RM.addEventListener('change', function(){ mountStory(); });
+
+/* packets: only while a graph is visible, never with reduced motion */
+var visible = {hero:true, stage:false};
+if ('IntersectionObserver' in window){
+  new IntersectionObserver(function(es){ es.forEach(function(e){ visible[e.target.id === 'heroGraph' ? 'hero' : 'stage'] = e.isIntersecting; }); }).observe(heroG.svg);
+  new IntersectionObserver(function(es){ es.forEach(function(e){ visible.stage = e.isIntersecting; }); }).observe(stage);
+}
+function loop(now){
+  if (!reduced() && !document.hidden){
+    if (visible.hero) tickGraph(heroG, now); else heroG.last = 0;
+    if (visible.stage && !staticMode && (storyP < .12 || storyP > .9)) tickGraph(stageG, now); else stageG.last = 0;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------- Editions ---------- */
+var ED = {
+  android: {
+    ver:'v0.1.0 · Android 8.0+',
+    h:{en:'One person, on the phone',tr:'Telefonda, tek kişi'},
+    p:{en:'Everything stays on your phone. Rule-based analysis, a map of IP locations and PDF, CSV and JSON reports.',tr:'Her şey telefonunuzda kalır. Kural tabanlı analiz, IP konumları haritası ve PDF, CSV, JSON raporları.'},
+    li:[{en:'Keys encrypted with Android Keystore (AES-GCM)',tr:'Anahtarlar Android Keystore ile şifreli (AES-GCM)'},{en:'IP locations from up to four sources on OpenStreetMap',tr:'Dört kaynağa kadar IP konumu, OpenStreetMap üzerinde'},{en:'Secret-looking URL parameters are flagged',tr:'Gizli görünen URL parametreleri işaretlenir'},{en:'Light and dark theme, nine languages',tr:'Açık ve koyu tema, dokuz dil'}],
+    nodes:[
+      {x:30,y:50,hub:1,c:'var(--brand-2)',k:{en:'your phone',tr:'telefonunuz'},b:'OSINT-Book',s:{en:'data stays here',tr:'veri burada kalır'}},
+      {x:80,y:18,c:'var(--teal)',k:{en:'key-free',tr:'anahtarsız'},b:'Google Public DNS',s:'DNS · DMARC · DNSSEC'},
+      {x:80,y:50,c:'var(--teal)',k:{en:'key-free',tr:'anahtarsız'},b:'RDAP · Wayback',s:{en:'registry · archive',tr:'kayıt · arşiv'}},
+      {x:80,y:82,c:'var(--gold)',k:{en:'your free key',tr:'ücretsiz anahtarınız'},b:'VirusTotal · OTX …',s:{en:'existing reports only',tr:'yalnızca mevcut raporlar'}},
+      {x:30,y:86,c:'var(--teal)',k:{en:'export',tr:'dışa aktar'},b:'JSON · PDF · CSV',s:{en:'versioned exchange',tr:'sürümlü değişim'}}
+    ],
+    lines:[[0,1,'o'],[0,2,'o'],[0,3,'g'],[0,4,'t']],
+    shots:[['2_analysis',{en:'Rule-based analysis',tr:'Kural tabanlı analiz'}],['3_findings',{en:'Findings by query',tr:'Sorguya göre bulgular'}],['4_map',{en:'IP locations, OpenStreetMap',tr:'IP konumları, OpenStreetMap'}],['5_report',{en:'PDF report',tr:'PDF rapor'}]]
+  },
+  windows: {
+    ver:'web-v0.2.2 · Windows 10/11 x64',
+    h:{en:'A team, on a trusted local network',tr:'Güvenilir yerel ağda bir ekip'},
+    p:{en:'A small server on one Windows PC. Your team uses it in Edge or Chrome; data stays on your own server.',tr:'Tek bir Windows PC\'de küçük bir sunucu. Ekibiniz Edge veya Chrome ile kullanır; veri kendi sunucunuzda kalır.'},
+    li:[{en:'Named user accounts and an activity log',tr:'Adlı kullanıcı hesapları ve etkinlik günlüğü'},{en:'Admin panel opens only on the server computer',tr:'Yönetim paneli yalnızca sunucu bilgisayarda açılır'},{en:'Provider keys stored encrypted on the server',tr:'Sağlayıcı anahtarları sunucuda şifreli saklanır'},{en:'Template-based PDF, HTML and JSON reports',tr:'Şablon tabanlı PDF, HTML ve JSON raporları'}],
+    nodes:[
+      {x:13,y:28,c:'var(--brand-2)',k:{en:'analyst',tr:'analist'},b:'Edge / Chrome',s:'http://&lt;server-ip&gt;:8080'},
+      {x:13,y:72,c:'var(--brand-2)',k:{en:'analyst',tr:'analist'},b:'Edge / Chrome',s:{en:'same LAN',tr:'aynı yerel ağ'}},
+      {x:47,y:50,hub:1,c:'var(--brand-2)',k:{en:'your PC · server',tr:'PC\'niz · sunucu'},b:'OSINT-Book Web',s:{en:':8080 users · :8081 admin',tr:':8080 kullanıcı · :8081 yönetim'}},
+      {x:84,y:22,c:'var(--teal)',k:{en:'sources',tr:'kaynaklar'},b:{en:'public sources',tr:'açık kaynaklar'},s:{en:'you select them',tr:'siz seçersiniz'}},
+      {x:84,y:78,c:'var(--gold)',k:{en:'optional AI',tr:'isteğe bağlı YZ'},b:{en:'local or cloud',tr:'yerel veya bulut'},s:{en:'cloud after you confirm',tr:'bulut onayınızdan sonra'}}
+    ],
+    lines:[[0,2,'t'],[1,2,'t'],[2,3,'o'],[2,4,'g']],
+    shots:[['web_1_workspace',{en:'Shared workspace',tr:'Ortak çalışma alanı'}],['web_2_ai_analysis',{en:'AI analysis with evidence',tr:'Kanıtlı YZ analizi'}],['web_3_ai_models',{en:'Model management',tr:'Model yönetimi'}],['web_4_report',{en:'Report template',tr:'Rapor şablonu'}]]
+  }
+};
+var edCur = 'android';
+function renderEdition(){
+  var d = ED[edCur], dia = document.getElementById('edDiagram');
+  document.getElementById('edVer').textContent = d.ver;
+  document.getElementById('edText').innerHTML = '<h3>' + T(d.h) + '</h3><p>' + T(d.p) + '</p><ul>' + d.li.map(function(l){ return '<li>' + ico('i-check') + '<span>' + T(l) + '</span></li>'; }).join('') + '</ul>';
+  var mobile = window.innerWidth < 760;
+  var pos = d.nodes;
+  if (mobile && edCur === 'android') pos = [{x:26,y:50},{x:74,y:14},{x:74,y:50},{x:74,y:86},{x:26,y:86}];
+  if (mobile && edCur === 'windows') pos = [{x:26,y:12},{x:74,y:12},{x:50,y:48},{x:26,y:86},{x:74,y:86}];
+  var svg = '<svg viewBox="0 0 100 100" preserveAspectRatio="none">' + d.lines.map(function(l){
+    var a = pos[l[0]], b = pos[l[1]], mx = (a.x + b.x) / 2;
+    return '<path class="ln ' + l[2] + '" vector-effect="non-scaling-stroke" d="M' + a.x + ',' + a.y + ' C' + mx + ',' + a.y + ' ' + mx + ',' + b.y + ' ' + b.x + ',' + b.y + '"/>';
+  }).join('') + '</svg>';
+  dia.innerHTML = svg + d.nodes.map(function(n, i){
+    return '<div class="dnode' + (n.hub ? ' hub' : '') + '" style="left:' + pos[i].x + '%;top:' + pos[i].y + '%;--c:' + n.c + '"><small>' + T(n.k) + '</small><b>' + T(n.b) + '</b><span>' + T(n.s) + '</span></div>';
+  }).join('');
+  document.getElementById('edShots').innerHTML = d.shots.map(function(s){ return '<figure><img src="assets/' + s[0] + '.webp" alt="' + T(s[1]) + '" loading="lazy"><figcaption>' + T(s[1]) + '</figcaption></figure>'; }).join('');
+}
+var edTabs = document.querySelectorAll('[data-ed]');
+edTabs.forEach(function(b, i){
+  b.addEventListener('click', function(){ select(i); });
+  b.addEventListener('keydown', function(e){ if (e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ e.preventDefault(); select((i + 1) % 2); edTabs[(i + 1) % 2].focus(); } });
+});
+function select(i){
+  edTabs.forEach(function(b, j){ b.setAttribute('aria-selected', String(i === j)); b.tabIndex = i === j ? 0 : -1; });
+  edCur = edTabs[i].dataset.ed; document.getElementById('ed-panel').setAttribute('aria-labelledby', edTabs[i].id); renderEdition();
+}
+
+/* ---------- Sources catalog (docs/API_REGISTRY.md, checked 2026-10-27) ---------- */
+var NS = {en:'Not stated',tr:'Belirtilmemiş'}, NC = {en:'Non-commercial use',tr:'Ticari olmayan kullanım'};
+var TY = {D:{en:'Domain',tr:'Alan adı'},U:{en:'URL',tr:'URL'},I:{en:'IP',tr:'IP'},H:{en:'Hash',tr:'Hash'},P:{en:'Package',tr:'Paket'},R:{en:'Repository',tr:'Depo'},O:{en:'Organisation',tr:'Kuruluş'},C:{en:'IP coordinates',tr:'IP koordinatı'}};
+var CAT = [
+  ['google_dns','Google Public DNS JSON','DU','none',NS,{en:'Also the _dmarc TXT record and the DNSSEC (AD) flag',tr:'_dmarc TXT kaydı ve DNSSEC (AD) bayrağı da alınır'}],
+  ['rdap','IANA RDAP bootstrap → registry','DUI','none',{en:'Per registry',tr:'Kayıt kuruluşuna göre'},{en:'No intermediary; personal contact fields are not collected',tr:'Aracı yok; kişisel iletişim alanları toplanmaz'}],
+  ['wayback','Internet Archive','DU','none',NS,null],
+  ['github','GitHub REST','RO','optional',{en:'60/hour per IP; 5,000/hour with a token',tr:'IP başına 60/saat; token ile 5.000/saat'},null],
+  ['wikipedia','Wikipedia + Wikidata','OD','none',NS,{en:'CC BY-SA / CC0 attribution',tr:'CC BY-SA / CC0 atfı'}],
+  ['osv','OSV.dev','P','none',NS,{en:'Version ambiguity is shown',tr:'Sürüm belirsizliği gösterilir'}],
+  ['virustotal','VirusTotal v3','DUIH','key',{en:'4/min, 500/day, non-commercial',tr:'4/dk, 500/gün, ticari olmayan'},{en:'Read only, nothing uploaded',tr:'Yalnızca okuma, hiçbir şey yüklenmez'}],
+  ['abuseipdb','AbuseIPDB v2','I','key',{en:'1,000/day',tr:'1.000/gün'},null],
+  ['otx','AlienVault OTX','DUI','key',NS,null],
+  ['urlhaus','abuse.ch URLhaus','DUI','key',NS,{en:'Lookup only',tr:'Yalnızca sorgu'}],
+  ['malwarebazaar','abuse.ch MalwareBazaar','H','key',NS,{en:'No sample download or upload',tr:'Örnek indirme veya yükleme yok'}],
+  ['safebrowsing','Google Safe Browsing v4 Lookup','DU','key',NC,{en:'Key sent in a header',tr:'Anahtar başlıkta gönderilir'}],
+  ['urlscan','urlscan.io search','DUI','optional',{en:'Low limit without a key',tr:'Anahtarsız düşük limit'},{en:'Never submits new scans',tr:'Asla yeni tarama göndermez'}],
+  ['ipwhois','ipwho.is','I','none',NC,{en:'Approximate location',tr:'Yaklaşık konum'}],
+  ['ipapico','ipapi.co','I','none',{en:'~1,000/day',tr:'~1.000/gün'},{en:'Approximate location',tr:'Yaklaşık konum'}],
+  ['geojs','GeoJS','I','none',NS,{en:'Accuracy radius shown',tr:'Doğruluk yarıçapı gösterilir'}],
+  ['bigdatacloud','BigDataCloud IP Geolocation','I','key',{en:'Monthly free quota',tr:'Aylık ücretsiz kota'},{en:'Confidence level; key never stored in saved URLs',tr:'Güven düzeyi; anahtar kayıtlı URL\'lerde asla saklanmaz'}],
+  ['nominatim','OSM Nominatim','C','none',{en:'Max. 1 request/s',tr:'En fazla 1 istek/sn'},{en:'Started manually, city level',tr:'Elle başlatılır, şehir düzeyi'}],
+  ['ping','System ping','DUI','none',{en:'4 requests',tr:'4 istek'},{en:'Active, off by default',tr:'Aktif, varsayılan kapalı'}],
+  ['map','tile.openstreetmap.org','','none',{en:'Tile Usage Policy',tr:'Karo Kullanım Politikası'},{en:'Only while a map is shown',tr:'Yalnızca harita gösterilirken'}]
+];
+var AUTHC = {none:'var(--teal)', optional:'#9fd8c6', key:'var(--gold)'};
+var AUTHT = {none:{en:'Not needed',tr:'Gerekmez'}, optional:{en:'Optional',tr:'İsteğe bağlı'}, key:{en:'Your key',tr:'Sizin anahtarınız'}};
+var page = 0, PER = 8;
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function fillTypeSelect(){
+  var s = document.getElementById('fType'), v = s.value;
+  s.innerHTML = '<option value="">' + T({en:'Any',tr:'Hepsi'}) + '</option>' + Object.keys(TY).map(function(k){ return '<option value="' + k + '">' + T(TY[k]) + '</option>'; }).join('');
+  s.value = v;
+}
+function renderTable(){
+  var q = document.getElementById('q').value.trim().toLowerCase(), fk = document.getElementById('fKey').value, ft = document.getElementById('fType').value;
+  var rows = CAT.filter(function(r){
+    if (fk && r[3] !== fk) return false;
+    if (ft && r[2].indexOf(ft) < 0) return false;
+    if (!q) return true;
+    var hay = [r[0], r[1], T(r[4]), r[5] ? T(r[5]) : ''].concat(r[2].split('').map(function(c){ return T(TY[c]); })).join(' ').toLowerCase();
+    return hay.indexOf(q) >= 0;
+  });
+  var pages = Math.max(1, Math.ceil(rows.length / PER)); page = Math.min(page, pages - 1);
+  var slice = rows.slice(page * PER, page * PER + PER);
+  document.getElementById('tbody').innerHTML = slice.length ? slice.map(function(r){
+    return '<tr><td><span class="nm">' + esc(r[1]) + '</span><br><span class="id">' + r[0] + '</span></td><td>' + (r[2] ? r[2].split('').map(function(c){ return '<span class="tp">' + T(TY[c]) + '</span>'; }).join('') : '—') + '</td><td><span class="auth" style="--c:' + AUTHC[r[3]] + '">' + T(AUTHT[r[3]]) + '</span></td><td class="q">' + esc(T(r[4])) + '</td><td class="nt">' + (r[5] ? esc(T(r[5])) : '—') + '</td></tr>';
+  }).join('') : '<tr><td colspan="5" style="color:var(--muted)">' + T({en:'No source matches.',tr:'Eşleşen kaynak yok.'}) + '</td></tr>';
+  var from = rows.length ? page * PER + 1 : 0, to = Math.min(rows.length, page * PER + PER);
+  document.getElementById('count').textContent = (lang === 'tr' ? (rows.length + ' kaynaktan ' + from + '–' + to + ' gösteriliyor · API_REGISTRY.md, 2026-10-27') : ('Showing ' + from + '–' + to + ' of ' + rows.length + ' sources · API_REGISTRY.md, checked 2026-10-27'));
+  var pg = document.getElementById('pager'), h = '<button type="button" data-pg="prev" aria-label="Previous page"' + (page === 0 ? ' disabled' : '') + '>←</button>';
+  for (var i = 0; i < pages; i++) h += '<button type="button" data-pg="' + i + '"' + (i === page ? ' aria-current="page"' : '') + '>' + (i + 1) + '</button>';
+  pg.innerHTML = h + '<button type="button" data-pg="next" aria-label="Next page"' + (page >= pages - 1 ? ' disabled' : '') + '>→</button>';
+}
+document.getElementById('pager').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b || b.disabled) return;
+  var v = b.dataset.pg; page = v === 'prev' ? page - 1 : v === 'next' ? page + 1 : +v; renderTable();
+});
+['q','fKey','fType'].forEach(function(id){ document.getElementById(id).addEventListener('input', function(){ page = 0; renderTable(); }); });
+
+/* ---------- Terminal ---------- */
+var TERM = {
+  win: {who:'~ · powershell', foot:{en:'Windows 10/11 x64 · Java and llama.cpp included',tr:'Windows 10/11 x64 · Java ve llama.cpp dahil'}, foot2:{en:'8 GB RAM is enough for small CPU models',tr:'Küçük CPU modelleri için 8 GB RAM yeterli'},
+    lines:[
+      ['c',{en:'# 1 · verify the download (compare with the release notes)',tr:'# 1 · indirmeyi doğrulayın (sürüm notlarıyla karşılaştırın)'}],
+      ['cmd','> ','Get-FileHash .\\OSINT-Book-Web-0.2.2-Windows-x64.zip -Algorithm SHA256'],
+      ['o','  5E335F55EEA81C8D62F0D10C3A6B47B38145AE4BF19DABF47B57312384B8BA1A'],
+      ['',''],
+      ['c',{en:'# 2 · extract into a permanent folder, then start one of them',tr:'# 2 · kalıcı bir klasöre çıkarın, sonra birini başlatın'}],
+      ['cmd','> ','.\\Start-Local.bat',{en:'   # this computer only',tr:'   # yalnızca bu bilgisayar'}],
+      ['cmd','> ','.\\Start-LAN.bat',{en:'     # trusted local network',tr:'     # güvenilir yerel ağ'}],
+      ['ok',{en:'  › first start: choose the ports        [8080 · 8081]',tr:'  › ilk başlatma: portları seçin          [8080 · 8081]'}],
+      ['ok',{en:'  › create the administrator account     [12+ characters]',tr:'  › yönetici hesabını oluşturun           [12+ karakter]'}],
+      ['',''],
+      ['c',{en:'# 3 · open',tr:'# 3 · açın'}],
+      ['url',{en:'  user panel   ',tr:'  kullanıcı    '},'http://localhost:8080'],
+      ['url',{en:'  admin panel  ',tr:'  yönetim      '},'http://localhost:8081',{en:'   # server computer only',tr:'   # yalnızca sunucu bilgisayar'}]
+    ]},
+  and: {who:'~ · bash', foot:{en:'Android 8.0 or newer · 2.6 MB',tr:'Android 8.0 veya üstü · 2,6 MB'}, foot2:{en:'keys: Android Keystore',tr:'anahtarlar: Android Keystore'},
+    lines:[
+      ['c',{en:'# 1 · verify the APK before installing',tr:'# 1 · kurmadan önce APK\'yı doğrulayın'}],
+      ['cmd','$ ','sha256sum OSINT-Book-0.1.0.apk'],
+      ['o','  5a684668f153a611de7f855700f98d501a74f9fa20f5026e99575efbb59076b3'],
+      ['cmd','$ ','apksigner verify --print-certs OSINT-Book-0.1.0.apk'],
+      ['o',{en:'  signing certificate SHA-256 must be:',tr:'  imza sertifikası SHA-256 şu olmalı:'}],
+      ['o','  3da0a75892a61133ad6d2575bcac69d0b29a1f183722dd713df8a8d6e3f51b96'],
+      ['',''],
+      ['c',{en:'# 2 · open the APK on your phone and allow installing from that source',tr:'# 2 · APK\'yı telefonda açın ve o kaynaktan kuruluma izin verin'}]
+    ]},
+  build: {who:'~ · osint-book', foot:{en:'No paid service or account needed',tr:'Ücretli servis veya hesap gerekmez'}, foot2:'BUILDING.md',
+    lines:[
+      ['c',{en:'# Android · OpenJDK 17+ and Android SDK (platform 36)',tr:'# Android · OpenJDK 17+ ve Android SDK (platform 36)'}],
+      ['cmd','$ ','./gradlew testDebugUnitTest'],
+      ['cmd','$ ','./gradlew assembleRelease'],
+      ['',''],
+      ['c',{en:'# Windows edition · JDK 21+, from the repository root',tr:'# Windows sürümü · JDK 21+, depo kökünden'}],
+      ['cmd','> ','.\\web\\Build.ps1 -BundleRuntime']
+    ]}
+};
+var termCur = 'win';
+function renderTerm(){
+  var t = TERM[termCur];
+  document.getElementById('termWho').textContent = t.who;
+  document.getElementById('termFoot').textContent = T(t.foot);
+  document.getElementById('termFoot2').textContent = T(t.foot2);
+  document.getElementById('termPre').innerHTML = t.lines.map(function(l){
+    if (l[0] === 'c') return '<span class="c">' + esc(T(l[1])) + '</span>';
+    if (l[0] === 'cmd'){ var parts = l[2].split(' '); return '<span class="p">' + esc(l[1]) + '</span><span class="cmdw">' + esc(parts[0]) + '</span> <span class="f">' + esc(parts.slice(1).join(' ')) + '</span>' + (l[3] ? '<span class="c">' + esc(T(l[3])) + '</span>' : ''); }
+    if (l[0] === 'ok') return '<span class="okk">' + esc(T(l[1])) + '</span>';
+    if (l[0] === 'url') return '<span class="o">' + esc(T(l[1])) + '</span><span class="h">' + esc(l[2]) + '</span>' + (l[3] ? '<span class="c">' + esc(T(l[3])) + '</span>' : '');
+    if (l[0] === 'o') return '<span class="o">' + esc(T(l[1])) + '</span>';
+    return '';
+  }).join('\n');
+}
+var termTabs = document.querySelectorAll('[data-term]');
+termTabs.forEach(function(b, i){
+  b.addEventListener('click', function(){ pickTerm(i); });
+  b.addEventListener('keydown', function(e){ var n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (n){ e.preventDefault(); var j = (i + n + termTabs.length) % termTabs.length; pickTerm(j); termTabs[j].focus(); } });
+});
+function pickTerm(i){ termTabs.forEach(function(b, j){ b.setAttribute('aria-selected', String(i === j)); b.tabIndex = i === j ? 0 : -1; }); termCur = termTabs[i].dataset.term; renderTerm(); }
+
+/* ---------- Copy ---------- */
+function copyText(text, btn){
+  function done(){ btn.classList.add('ok'); setTimeout(function(){ btn.classList.remove('ok'); }, 1400); }
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, function(){});
+  else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} ta.remove(); }
+}
+document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click', function(){ copyText(b.dataset.copy, b); }); });
+document.getElementById('termCopy').addEventListener('click', function(){
+  var cmds = TERM[termCur].lines.filter(function(l){ return l[0] === 'cmd'; }).map(function(l){ return l[2]; }).join('\n');
+  copyText(cmds, this);
+});
+
+/* ---------- Title reveal ---------- */
+if ('IntersectionObserver' in window && !reduced()){
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){ setTimeout(function(){ e.target.classList.add('in'); }, 120); io.unobserve(e.target); } }); }, {threshold:.4});
+  document.querySelectorAll('.reveal').forEach(function(r){ io.observe(r); });
+} else document.querySelectorAll('.reveal').forEach(function(r){ r.classList.add('in'); });
+
+/* ---------- Language ---------- */
+function setLang(l){
+  lang = l; try { localStorage.setItem('ob-lang', l); } catch (e) {}
+  applyStatic(); relabelGraph(heroG); relabelGraph(stageG); renderEdition(); fillTypeSelect(); renderTable(); renderTerm(); mountStory();
+}
+document.querySelectorAll('.lang button').forEach(function(b){ b.addEventListener('click', function(){ setLang(b.dataset.lang); }); });
+
+fitViewBox(heroG.svg); fitViewBox(stageG.svg);
+setLang(lang);
+})();
+</script>
+</body>
+</html>

@@ -6,6 +6,8 @@
 
 **A passive, source-first OSINT notebook for Android and Windows.**
 
+Website: https://smyrna-pergamum.github.io/osint-book/
+
 OSINT-Book helps you research domains, URLs, IP addresses, organisations, GitHub repositories, software packages and file hashes using public sources you pick yourself. Every finding keeps its source link, retrieval time and an evidence record, so each claim in your report can be traced back to where it came from.
 
 It comes in two editions that share the same sources, analysis and file format:
